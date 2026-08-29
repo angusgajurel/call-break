@@ -24,6 +24,10 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, rooms: rooms.size })
 })
 
+app.get('/api/rooms', (_req, res) => {
+  res.json(getJoinableRooms())
+})
+
 if (fs.existsSync(path.join(distPath, 'index.html'))) {
   app.use(express.static(distPath))
   app.get(/^(?!\/socket\.io).*/, (_req, res) => {
@@ -79,6 +83,41 @@ function removePlayerFromRoom(room, playerKey) {
   }
 }
 
+function publicRoomListItem(room) {
+  const host = room.players.find((player) => player.playerKey === room.hostPlayerKey)
+  return {
+    code: room.code,
+    hostName: host?.name ?? 'Host',
+    players: room.players
+      .slice()
+      .sort((a, b) => a.seat - b.seat)
+      .map((player) => ({
+        name: player.name,
+        connected: player.connected,
+        seat: player.seat,
+      })),
+    playerCount: room.players.length,
+    openSeats: 4 - room.players.length,
+    payouts: room.pendingPayouts ?? room.game?.payouts ?? null,
+  }
+}
+
+function getJoinableRooms() {
+  return [...rooms.values()]
+    .filter(
+      (room) =>
+        room.status === 'lobby' &&
+        room.players.length < 4 &&
+        room.players.some((player) => player.connected),
+    )
+    .map(publicRoomListItem)
+    .sort((a, b) => b.playerCount - a.playerCount || a.code.localeCompare(b.code))
+}
+
+function broadcastRoomList() {
+  io.emit('room-list', getJoinableRooms())
+}
+
 function assignSeat(room) {
   const used = new Set(room.players.map((player) => player.seat))
   for (let seat = 0; seat < 4; seat += 1) {
@@ -100,6 +139,7 @@ function broadcastRoom(room) {
     }
     io.to(player.id).emit('state', payload)
   })
+  broadcastRoomList()
 }
 
 function notifyVoicePeerLeft(room, peerId) {
@@ -127,6 +167,12 @@ const io = new Server(httpServer, {
 
 io.on('connection', (socket) => {
   let joinedCode = null
+
+  socket.emit('room-list', getJoinableRooms())
+
+  socket.on('list-rooms', () => {
+    socket.emit('room-list', getJoinableRooms())
+  })
 
   socket.on('create-room', ({ name, payouts, playerKey }) => {
     let code = createRoomCode()
@@ -308,6 +354,7 @@ io.on('connection', (socket) => {
     joinedCode = null
     if (room.players.length === 0) {
       rooms.delete(room.code)
+      broadcastRoomList()
     } else {
       broadcastRoom(room)
     }

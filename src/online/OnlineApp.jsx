@@ -109,6 +109,7 @@ export default function OnlineApp({ onBack }) {
   const [connected, setConnected] = useState(false)
   const [connecting, setConnecting] = useState(true)
   const [reconnecting, setReconnecting] = useState(Boolean(savedSession?.roomCode))
+  const [availableRooms, setAvailableRooms] = useState([])
 
   const inRoom = Boolean(room?.code)
   const { micOn, voiceError, remoteStreams, toggleMic } = useVoiceChat(socket, room?.code, inRoom)
@@ -195,7 +196,11 @@ export default function OnlineApp({ onBack }) {
       setGame(null)
       setYou(null)
       setScreen('menu')
+      socket.emit('list-rooms')
     })
+
+    const onRoomList = (rooms) => setAvailableRooms(rooms)
+    socket.on('room-list', onRoomList)
 
     socket.connect()
 
@@ -203,9 +208,17 @@ export default function OnlineApp({ onBack }) {
       socket.off('connect', onConnect)
       socket.off('disconnect', onDisconnect)
       socket.off('connect_error', onConnectError)
+      socket.off('room-list', onRoomList)
       socket.disconnect()
     }
   }, [socket])
+
+  useEffect(() => {
+    if (screen !== 'menu' || !connected) return undefined
+    socket.emit('list-rooms')
+    const interval = setInterval(() => socket.emit('list-rooms'), 10000)
+    return () => clearInterval(interval)
+  }, [screen, connected, socket])
 
   const players = room?.players ?? []
   const isHost = room && you && room.hostPlayerKey === you.playerKey
@@ -243,16 +256,25 @@ export default function OnlineApp({ onBack }) {
     socket.emit('create-room', { name: name.trim(), payouts, playerKey })
   }
 
-  const joinRoom = () => {
-    if (!name.trim() || !roomCode.trim()) {
-      setError('Enter your name and room code')
+  const joinRoomByCode = (code) => {
+    if (!name.trim()) {
+      setError('Enter your name first')
       return
     }
     if (!requireConnection()) return
     setError('')
-    const code = roomCode.trim().toUpperCase()
-    saveSession({ name: name.trim(), roomCode: code, playerKey })
-    socket.emit('join-room', { code, name: name.trim(), playerKey })
+    const normalized = code.trim().toUpperCase()
+    setRoomCode(normalized)
+    saveSession({ name: name.trim(), roomCode: normalized, playerKey })
+    socket.emit('join-room', { code: normalized, name: name.trim(), playerKey })
+  }
+
+  const joinRoom = () => {
+    if (!roomCode.trim()) {
+      setError('Enter a room code')
+      return
+    }
+    joinRoomByCode(roomCode)
   }
 
   const startGame = () => socket.emit('start-game')
@@ -347,7 +369,7 @@ export default function OnlineApp({ onBack }) {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
             <h1 className="text-2xl font-bold text-emerald-900">Play Online</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Create a room, share the code with 3 friends, and play Call Break together.
+              Create a room or join an open game below — no code needed.
             </p>
             {connectionBanner}
 
@@ -411,30 +433,103 @@ export default function OnlineApp({ onBack }) {
               {connecting ? 'Connecting…' : connected ? 'Create Room' : 'Server Offline'}
             </button>
 
-            <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
-              <div className="h-px flex-1 bg-slate-200" />
-              OR JOIN
-              <div className="h-px flex-1 bg-slate-200" />
-            </div>
+            <section className="mt-6">
+              <div className="mb-3 flex items-center justify-between gap-2">
+                <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+                  Open rooms
+                </h2>
+                <button
+                  type="button"
+                  onClick={() => socket.emit('list-rooms')}
+                  disabled={!connected}
+                  className="text-xs font-medium text-emerald-700 hover:text-emerald-900 disabled:text-slate-400"
+                >
+                  Refresh
+                </button>
+              </div>
 
-            <label className="block text-sm font-medium text-slate-700">
-              Room code
-              <input
-                value={roomCode}
-                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base uppercase tracking-widest"
-                placeholder="ABC123"
-                maxLength={6}
-              />
-            </label>
-            <button
-              type="button"
-              onClick={joinRoom}
-              disabled={!connected || connecting}
-              className="mt-4 w-full cursor-pointer rounded-xl border border-emerald-700 py-3.5 text-base font-semibold text-emerald-800 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
-            >
-              Join Room
-            </button>
+              {!connected ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                  Connect to see open rooms.
+                </p>
+              ) : availableRooms.length === 0 ? (
+                <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
+                  No open rooms right now. Create one and friends can join from here.
+                </p>
+              ) : (
+                <ul className="space-y-3">
+                  {availableRooms.map((openRoom) => (
+                    <li
+                      key={openRoom.code}
+                      className="rounded-xl border border-slate-200 bg-slate-50/80 p-4"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold text-slate-800">
+                            {openRoom.hostName}&apos;s room
+                          </p>
+                          <p className="mt-1 text-xs text-slate-500">
+                            {openRoom.playerCount}/4 players · {openRoom.openSeats} seat
+                            {openRoom.openSeats === 1 ? '' : 's'} open
+                            {openRoom.payouts
+                              ? ` · 2nd/${openRoom.payouts.second} 3rd/${openRoom.payouts.third} 4th/${openRoom.payouts.fourth}`
+                              : ''}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => joinRoomByCode(openRoom.code)}
+                          disabled={!connected || connecting}
+                          className="shrink-0 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-slate-300"
+                        >
+                          Join
+                        </button>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {openRoom.players.map((player) => (
+                          <span
+                            key={`${openRoom.code}-${player.seat}`}
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              player.connected
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : 'bg-slate-200 text-slate-600'
+                            }`}
+                          >
+                            {player.name}
+                            {player.seat === 0 ? ' · host' : ''}
+                            {!player.connected ? ' · offline' : ''}
+                          </span>
+                        ))}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
+
+            <details className="mt-6 rounded-xl border border-slate-200 bg-slate-50/50 p-4">
+              <summary className="cursor-pointer text-sm font-medium text-slate-700">
+                Join with room code
+              </summary>
+              <label className="mt-4 block text-sm font-medium text-slate-700">
+                Room code
+                <input
+                  value={roomCode}
+                  onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                  className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-base uppercase tracking-widest"
+                  placeholder="ABC123"
+                  maxLength={6}
+                />
+              </label>
+              <button
+                type="button"
+                onClick={joinRoom}
+                disabled={!connected || connecting || !roomCode.trim()}
+                className="mt-4 w-full cursor-pointer rounded-xl border border-emerald-700 bg-white py-3 text-base font-semibold text-emerald-800 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
+              >
+                Join with code
+              </button>
+            </details>
           </div>
         </div>
       </div>
