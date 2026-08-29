@@ -4,10 +4,10 @@ Interactive 5-round scorekeeper for a 4-player Call Break card game.
 
 ## Live app
 
-**https://turbo-portal-vg6w34k.shipstatic.com**
+**https://astral-seed-pa6x3ec.shipstatic.com**
 
 To keep this deployment permanently (it expires after 3 days unless claimed), open:
-https://my.shipstatic.com/claim/edbca3e1fcc12dfe125a910644306293
+https://my.shipstatic.com/claim/c77201377ff8eccb508071a81924d54d
 
 ## Local development
 
