@@ -1,4 +1,5 @@
 import { createServer } from 'node:http'
+import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import express from 'express'
@@ -23,14 +24,14 @@ app.get('/health', (_req, res) => {
   res.json({ ok: true, rooms: rooms.size })
 })
 
-if (process.env.NODE_ENV === 'production') {
+if (fs.existsSync(path.join(distPath, 'index.html'))) {
   app.use(express.static(distPath))
   app.get(/^(?!\/socket\.io).*/, (_req, res) => {
     res.sendFile(path.join(distPath, 'index.html'))
   })
 } else {
   app.get('/', (_req, res) => {
-    res.type('text').send('Call Break server running. Start the Vite client with npm run dev.')
+    res.type('text').send('Call Break server running. Run npm run build then npm start.')
   })
 }
 
@@ -73,6 +74,23 @@ function broadcastRoom(room) {
       you: { seat: player.seat, id: player.id },
     }
     io.to(player.id).emit('state', payload)
+  })
+}
+
+function notifyVoicePeerLeft(room, peerId) {
+  room.players.forEach((player) => {
+    if (player.id !== peerId && player.connected) {
+      io.to(player.id).emit('voice-peer-left', { peerId })
+    }
+  })
+}
+
+function notifyVoicePeers(room, socketId) {
+  room.players.forEach((player) => {
+    if (player.id !== socketId && player.connected) {
+      io.to(player.id).emit('voice-peer-ready', { peerId: socketId })
+      io.to(socketId).emit('voice-peer-ready', { peerId: player.id })
+    }
   })
 }
 
@@ -193,6 +211,7 @@ io.on('connection', (socket) => {
   socket.on('leave-room', () => {
     const room = getRoom(joinedCode)
     if (!room) return
+    notifyVoicePeerLeft(room, socket.id)
     const player = room.players.find((p) => p.id === socket.id)
     if (player) player.connected = false
     socket.leave(room.code)
@@ -200,9 +219,30 @@ io.on('connection', (socket) => {
     broadcastRoom(room)
   })
 
+  socket.on('voice-ready', ({ roomCode }) => {
+    const room = getRoom(roomCode)
+    if (!room) return
+    if (!room.players.some((player) => player.id === socket.id)) return
+    notifyVoicePeers(room, socket.id)
+  })
+
+  socket.on('voice-signal', ({ roomCode, to, signal }) => {
+    const room = getRoom(roomCode)
+    if (!room) return
+    if (!room.players.some((player) => player.id === socket.id)) return
+    io.to(to).emit('voice-signal', { from: socket.id, signal })
+  })
+
+  socket.on('voice-stop', ({ roomCode }) => {
+    const room = getRoom(roomCode)
+    if (!room) return
+    notifyVoicePeerLeft(room, socket.id)
+  })
+
   socket.on('disconnect', () => {
     const room = getRoom(joinedCode)
     if (!room) return
+    notifyVoicePeerLeft(room, socket.id)
     const player = room.players.find((p) => p.id === socket.id)
     if (player) player.connected = false
     broadcastRoom(room)

@@ -1,13 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { io } from 'socket.io-client'
 import {
   DEFAULT_PAYOUTS,
   formatMoney,
   formatScore,
   rankLabel,
 } from '../lib/scoring.js'
-
-const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || ''
+import { createGameSocket } from './socket.js'
+import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
 
 function cardLabel(card) {
   const rankMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
@@ -34,9 +33,7 @@ function CardButton({ card, onPlay, disabled }) {
 }
 
 export default function OnlineApp({ onBack }) {
-  const [socket] = useState(() =>
-    io(SOCKET_URL, { autoConnect: false, transports: ['websocket', 'polling'] }),
-  )
+  const [socket] = useState(() => createGameSocket())
   const [screen, setScreen] = useState('menu')
   const [name, setName] = useState('')
   const [roomCode, setRoomCode] = useState('')
@@ -45,18 +42,35 @@ export default function OnlineApp({ onBack }) {
   const [game, setGame] = useState(null)
   const [you, setYou] = useState(null)
   const [payouts, setPayouts] = useState(DEFAULT_PAYOUTS)
-
   const [connected, setConnected] = useState(false)
+  const [connecting, setConnecting] = useState(true)
+
+  const inRoom = Boolean(room?.code)
+  const { micOn, voiceError, remoteStreams, toggleMic } = useVoiceChat(socket, room?.code, inRoom)
 
   useEffect(() => {
-    socket.connect()
+    const onConnect = () => {
+      setConnected(true)
+      setConnecting(false)
+      setError('')
+    }
 
-    socket.on('connect', () => setConnected(true))
-    socket.on('disconnect', () => setConnected(false))
-    socket.on('connect_error', () => {
+    const onDisconnect = () => {
       setConnected(false)
-      setError('Could not reach the game server. Online play needs the full app host (npm start), not the static-only deploy.')
-    })
+      setConnecting(false)
+    }
+
+    const onConnectError = () => {
+      setConnected(false)
+      setConnecting(false)
+      setError(
+        'Cannot reach the game server. Use the full app URL (npm start), not the static-only link.',
+      )
+    }
+
+    socket.on('connect', onConnect)
+    socket.on('disconnect', onDisconnect)
+    socket.on('connect_error', onConnectError)
 
     socket.on('state', (payload) => {
       setRoom(payload.room)
@@ -68,7 +82,12 @@ export default function OnlineApp({ onBack }) {
 
     socket.on('error-msg', (message) => setError(message))
 
+    socket.connect()
+
     return () => {
+      socket.off('connect', onConnect)
+      socket.off('disconnect', onDisconnect)
+      socket.off('connect_error', onConnectError)
       socket.disconnect()
     }
   }, [socket])
@@ -85,11 +104,26 @@ export default function OnlineApp({ onBack }) {
     return names
   }, [players])
 
+  const retryConnection = () => {
+    setConnecting(true)
+    setError('')
+    if (!socket.connected) socket.connect()
+  }
+
+  const requireConnection = () => {
+    if (socket.connected) return true
+    setError('Not connected to server yet. Tap Retry connection below.')
+    retryConnection()
+    return false
+  }
+
   const createRoom = () => {
     if (!name.trim()) {
-      setError('Enter your name')
+      setError('Enter your name first')
       return
     }
+    if (!requireConnection()) return
+    setError('')
     socket.emit('create-room', { name: name.trim(), payouts })
   }
 
@@ -98,6 +132,8 @@ export default function OnlineApp({ onBack }) {
       setError('Enter your name and room code')
       return
     }
+    if (!requireConnection()) return
+    setError('')
     socket.emit('join-room', { code: roomCode.trim().toUpperCase(), name: name.trim() })
   }
 
@@ -111,6 +147,33 @@ export default function OnlineApp({ onBack }) {
     setScreen('menu')
   }
 
+  const connectionBanner = (
+    <div
+      className={`mt-3 rounded-lg px-3 py-2 text-sm ${
+        connected
+          ? 'bg-emerald-50 text-emerald-800'
+          : connecting
+            ? 'bg-amber-50 text-amber-800'
+            : 'bg-red-50 text-red-700'
+      }`}
+    >
+      {connected
+        ? 'Connected to game server'
+        : connecting
+          ? 'Connecting to game server…'
+          : 'Not connected to game server'}
+      {!connected && (
+        <button
+          type="button"
+          onClick={retryConnection}
+          className="ml-2 font-semibold underline"
+        >
+          Retry
+        </button>
+      )}
+    </div>
+  )
+
   if (screen === 'menu') {
     return (
       <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8">
@@ -123,16 +186,14 @@ export default function OnlineApp({ onBack }) {
             <p className="mt-2 text-sm text-slate-600">
               Create a room, share the code with 3 friends, and play Call Break together.
             </p>
-            {!connected && !error && (
-              <p className="mt-2 text-sm text-amber-700">Connecting to game server…</p>
-            )}
+            {connectionBanner}
 
             <label className="mt-6 block text-sm font-medium text-slate-700">
               Your name
               <input
                 value={name}
                 onChange={(e) => setName(e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base"
                 placeholder="Enter your name"
               />
             </label>
@@ -181,9 +242,10 @@ export default function OnlineApp({ onBack }) {
             <button
               type="button"
               onClick={createRoom}
-              className="mt-6 w-full rounded-xl bg-emerald-700 py-3 font-semibold text-white hover:bg-emerald-600"
+              disabled={!connected || connecting}
+              className="mt-6 w-full cursor-pointer rounded-xl bg-emerald-700 py-3.5 text-base font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
             >
-              Create Room
+              {connecting ? 'Connecting…' : connected ? 'Create Room' : 'Server Offline'}
             </button>
 
             <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
@@ -197,7 +259,7 @@ export default function OnlineApp({ onBack }) {
               <input
                 value={roomCode}
                 onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 uppercase tracking-widest"
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base uppercase tracking-widest"
                 placeholder="ABC123"
                 maxLength={6}
               />
@@ -205,7 +267,8 @@ export default function OnlineApp({ onBack }) {
             <button
               type="button"
               onClick={joinRoom}
-              className="mt-4 w-full rounded-xl border border-emerald-700 py-3 font-semibold text-emerald-800 hover:bg-emerald-50"
+              disabled={!connected || connecting}
+              className="mt-4 w-full cursor-pointer rounded-xl border border-emerald-700 py-3.5 text-base font-semibold text-emerald-800 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:border-slate-300 disabled:text-slate-400"
             >
               Join Room
             </button>
@@ -217,28 +280,50 @@ export default function OnlineApp({ onBack }) {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-3 py-4 pb-24">
+      <VoiceAudio remoteStreams={remoteStreams} players={players} />
+
       <div className="mx-auto max-w-4xl">
-        <div className="mb-4 flex items-center justify-between gap-2">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-xl font-bold text-emerald-900">Call Break Online</h1>
             <p className="text-sm text-slate-500">
               Room <span className="font-mono font-bold text-emerald-800">{room?.code}</span>
             </p>
           </div>
-          <button
-            type="button"
-            onClick={leaveRoom}
-            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
-          >
-            Leave
-          </button>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={toggleMic}
+              className={`rounded-lg px-3 py-2 text-sm font-medium ${
+                micOn
+                  ? 'bg-emerald-700 text-white'
+                  : 'border border-slate-300 bg-white text-slate-700'
+              }`}
+            >
+              {micOn ? '🎤 On' : '🎤 Talk'}
+            </button>
+            <button
+              type="button"
+              onClick={leaveRoom}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+            >
+              Leave
+            </button>
+          </div>
         </div>
 
-        {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+        {(error || voiceError) && (
+          <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
+            {error || voiceError}
+          </p>
+        )}
 
         {room?.status === 'lobby' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-semibold text-slate-800">Waiting for players ({players.length}/4)</h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Tap <strong>Talk</strong> to enable voice chat with your friends.
+            </p>
             <ul className="mt-3 space-y-2">
               {players.map((player) => (
                 <li key={player.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
@@ -272,7 +357,12 @@ export default function OnlineApp({ onBack }) {
             <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <p className="font-semibold text-emerald-900">
-                  Round {game.round}/5 · {game.phase === 'bidding' ? 'Bidding' : game.phase === 'playing' ? 'Playing' : 'Finished'}
+                  Round {game.round}/5 ·{' '}
+                  {game.phase === 'bidding'
+                    ? 'Bidding'
+                    : game.phase === 'playing'
+                      ? 'Playing'
+                      : 'Finished'}
                 </p>
                 <p className="text-sm text-slate-500">Dealer: {playerNames[game.dealer]}</p>
               </div>
@@ -287,8 +377,12 @@ export default function OnlineApp({ onBack }) {
               {game.currentTrick?.cards?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {game.currentTrick.cards.map((play) => (
-                    <div key={`${play.seat}-${play.card.id}`} className="rounded-lg bg-slate-100 px-3 py-2 text-sm">
-                      {playerNames[play.seat]}: <span className={suitColor(play.card.s)}>{cardLabel(play.card)}</span>
+                    <div
+                      key={`${play.seat}-${play.card.id}`}
+                      className="rounded-lg bg-slate-100 px-3 py-2 text-sm"
+                    >
+                      {playerNames[play.seat]}:{' '}
+                      <span className={suitColor(play.card.s)}>{cardLabel(play.card)}</span>
                     </div>
                   ))}
                 </div>
@@ -299,7 +393,9 @@ export default function OnlineApp({ onBack }) {
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                 <h3 className="font-semibold text-amber-900">Place your call (1–8)</h3>
                 {game.calls[mySeat] !== null ? (
-                  <p className="mt-2 text-sm text-amber-800">Your call: {game.calls[mySeat]}. Waiting for others…</p>
+                  <p className="mt-2 text-sm text-amber-800">
+                    Your call: {game.calls[mySeat]}. Waiting for others…
+                  </p>
                 ) : (
                   <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
                     {[1, 2, 3, 4, 5, 6, 7, 8].map((call) => (
@@ -318,13 +414,20 @@ export default function OnlineApp({ onBack }) {
             )}
 
             <div className="rounded-2xl border border-emerald-900 bg-emerald-950 p-4 text-white">
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-200">Scores</h3>
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-200">
+                Scores
+              </h3>
               <div className="space-y-2">
                 {playerNames.map((player, index) => (
-                  <div key={index} className="flex items-center justify-between rounded-lg bg-emerald-900/60 px-3 py-2 text-sm">
+                  <div
+                    key={index}
+                    className="flex items-center justify-between rounded-lg bg-emerald-900/60 px-3 py-2 text-sm"
+                  >
                     <span>
                       {player}
-                      {game.ranks[index] ? ` · ${rankLabel(game.ranks[index], game.tied[index])}` : ''}
+                      {game.ranks[index]
+                        ? ` · ${rankLabel(game.ranks[index], game.tied[index])}`
+                        : ''}
                     </span>
                     <span>
                       {formatScore(game.totals[index])} pts
@@ -334,7 +437,9 @@ export default function OnlineApp({ onBack }) {
                         </span>
                       )}
                       {game.gameComplete && (
-                        <span className={`ml-2 ${game.money[index] >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                        <span
+                          className={`ml-2 ${game.money[index] >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                        >
                           {formatMoney(game.money[index])}
                         </span>
                       )}
@@ -363,7 +468,9 @@ export default function OnlineApp({ onBack }) {
             {game.gameComplete && (
               <div className="rounded-2xl border-2 border-amber-400 bg-amber-100 p-5 text-center">
                 <h3 className="text-lg font-bold text-amber-950">Game Over</h3>
-                <p className="mt-2 text-amber-900">Final standings are shown above. Tied payouts are averaged.</p>
+                <p className="mt-2 text-amber-900">
+                  Final standings above. Tied payouts are averaged.
+                </p>
               </div>
             )}
           </div>
