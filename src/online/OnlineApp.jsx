@@ -19,6 +19,19 @@ function suitColor(suit) {
   return suit === 'H' || suit === 'D' ? 'text-red-600' : 'text-slate-900'
 }
 
+function canPlayCard(hand, card, trick) {
+  if (!trick?.cards?.length) return true
+  const leadSuit = trick.cards[0].card.s
+  const hasLeadSuit = hand.some((c) => c.s === leadSuit)
+  if (hasLeadSuit) return card.s === leadSuit
+  return true
+}
+
+function leadSuitLabel(suit) {
+  const suitMap = { S: '♠ spades', H: '♥ hearts', D: '♦ diamonds', C: '♣ clubs' }
+  return suitMap[suit] || suit
+}
+
 function CardButton({ card, onPlay, disabled }) {
   return (
     <button
@@ -42,23 +55,33 @@ function CardBadge({ card }) {
   )
 }
 
-function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay }) {
+function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick }) {
   if (!hand?.length) return null
 
-  const canPlay = phase === 'playing' && currentTurn === mySeat
+  const isMyTurn = phase === 'playing' && currentTurn === mySeat
+  const leadSuit = currentTrick?.cards?.[0]?.card?.s ?? null
+  const mustFollowSuit = isMyTurn && leadSuit && hand.some((c) => c.s === leadSuit)
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-3 font-semibold text-slate-800">
+      <h3 className="mb-1 font-semibold text-slate-800">
         Your hand <span className="text-sm font-normal text-slate-500">({hand.length} cards)</span>
       </h3>
+      {isMyTurn && mustFollowSuit && (
+        <p className="mb-3 text-sm text-amber-700">
+          Must follow {leadSuitLabel(leadSuit)} — other cards are disabled.
+        </p>
+      )}
+      {isMyTurn && !leadSuit && (
+        <p className="mb-3 text-sm text-emerald-700">Your lead — play any card.</p>
+      )}
       <div className="flex flex-wrap gap-2">
         {hand.map((card) =>
           phase === 'playing' ? (
             <CardButton
               key={card.id}
               card={card}
-              disabled={!canPlay}
+              disabled={!isMyTurn || !canPlayCard(hand, card, currentTrick)}
               onPlay={onPlay}
             />
           ) : (
@@ -497,6 +520,7 @@ export default function OnlineApp({ onBack }) {
                 phase={game.phase}
                 currentTurn={game.currentTurn}
                 mySeat={mySeat}
+                currentTrick={game.currentTrick}
                 onPlay={playCard}
               />
             )}
