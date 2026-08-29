@@ -1,7 +1,8 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 
 const DEFAULT_PLAYERS = ['Anup', 'Dev', 'Sushil', 'Roshan']
 const DEFAULT_PAYOUTS = { second: 5, third: 10, fourth: 15 }
+const HISTORY_KEY = 'call-break-game-history'
 const ROUNDS = 5
 const PLAYERS = 4
 
@@ -36,6 +37,15 @@ function formatMoney(amount) {
   if (amount === null || amount === undefined) return '—'
   const prefix = amount >= 0 ? '+' : '−'
   return `${prefix}${Math.abs(amount).toFixed(amount % 1 === 0 ? 0 : 1)}`
+}
+
+function formatDate(iso) {
+  return new Date(iso).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  })
 }
 
 function isRoundComplete(round) {
@@ -82,6 +92,44 @@ function calculatePositionMoney(totals, payouts, gameComplete) {
   return { money, ranks }
 }
 
+function buildHistoryEntry(players, totals, ranks, moneyTotals, payouts) {
+  const results = calculateRankings(totals).map((entry, rank) => ({
+    name: players[entry.index],
+    rank: rank + 1,
+    points: entry.total,
+    money: moneyTotals[entry.index],
+  }))
+
+  return {
+    id: Date.now(),
+    date: new Date().toISOString(),
+    payouts: { ...payouts },
+    results,
+    ranks,
+  }
+}
+
+function loadHistory() {
+  try {
+    const stored = localStorage.getItem(HISTORY_KEY)
+    return stored ? JSON.parse(stored) : []
+  } catch {
+    return []
+  }
+}
+
+function saveHistory(history) {
+  localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
+}
+
+function rankLabel(rank) {
+  if (rank === 1) return '1st'
+  if (rank === 2) return '2nd'
+  if (rank === 3) return '3rd'
+  if (rank === 4) return '4th'
+  return null
+}
+
 function ScoreBadge({ score }) {
   return (
     <div
@@ -94,21 +142,6 @@ function ScoreBadge({ score }) {
       }`}
     >
       {score === null ? '—' : formatScore(score)}
-    </div>
-  )
-}
-
-function MoneyBadge({ amount, large = false }) {
-  const positive = amount >= 0
-  return (
-    <div
-      className={`rounded-lg px-2 py-1.5 text-center font-semibold ${
-        large ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
-      } ${
-        positive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
-      }`}
-    >
-      {formatMoney(amount)}
     </div>
   )
 }
@@ -146,7 +179,74 @@ function PlayerInputs({ entry, roundIndex, playerIndex, onUpdate }) {
   )
 }
 
-function SetupScreen({ players, payouts, onPlayersChange, onPayoutChange, onStart }) {
+function GameHistory({ history, onClear }) {
+  if (history.length === 0) return null
+
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5">
+      <div className="mb-4 flex items-center justify-between gap-2">
+        <h2 className="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Previous Games
+        </h2>
+        <button
+          type="button"
+          onClick={onClear}
+          className="text-xs font-medium text-slate-500 hover:text-red-600"
+        >
+          Clear history
+        </button>
+      </div>
+      <div className="space-y-3">
+        {history.map((game) => (
+          <article
+            key={game.id}
+            className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 sm:p-4"
+          >
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+              <p className="text-xs font-medium text-slate-500">{formatDate(game.date)}</p>
+              <p className="text-xs text-slate-400">
+                2nd/{game.payouts.second} · 3rd/{game.payouts.third} · 4th/{game.payouts.fourth}
+              </p>
+            </div>
+            <div className="space-y-1.5">
+              {game.results.map((result) => (
+                <div
+                  key={`${game.id}-${result.rank}`}
+                  className="flex items-center justify-between gap-2 text-sm"
+                >
+                  <div className="min-w-0">
+                    <span className="font-medium text-slate-800">{result.name}</span>
+                    <span className="ml-2 text-xs text-slate-500">{rankLabel(result.rank)}</span>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <span className="text-slate-600">{formatScore(result.points)} pts</span>
+                    <span
+                      className={`ml-2 font-semibold ${
+                        result.money >= 0 ? 'text-emerald-700' : 'text-red-600'
+                      }`}
+                    >
+                      {formatMoney(result.money)}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function SetupScreen({
+  players,
+  payouts,
+  history,
+  onPlayersChange,
+  onPayoutChange,
+  onStart,
+  onClearHistory,
+}) {
   const canStart =
     players.every((name) => name.trim().length > 0) &&
     payouts.second > 0 &&
@@ -156,104 +256,97 @@ function SetupScreen({ players, payouts, onPlayersChange, onPayoutChange, onStar
   const winnerCollects = payouts.second + payouts.third + payouts.fourth
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8">
-      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
-        <header className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-emerald-900 sm:text-3xl">Call Break</h1>
-          <p className="mt-2 text-sm text-slate-600">Set up players and payouts before starting</p>
-        </header>
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-6 sm:py-8">
+      <div className="mx-auto w-full max-w-lg space-y-6">
+        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
+          <header className="mb-6 text-center">
+            <h1 className="text-2xl font-bold text-emerald-900 sm:text-3xl">Call Break</h1>
+            <p className="mt-2 text-sm text-slate-600">Set up players and payouts before starting</p>
+          </header>
 
-        <section className="mb-6">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Players
-          </h2>
-          <div className="space-y-3">
-            {players.map((player, index) => (
-              <label key={index} className="block text-sm font-medium text-slate-700">
-                Player {index + 1}
+          <section className="mb-6">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Players
+            </h2>
+            <div className="space-y-3">
+              {players.map((player, index) => (
+                <label key={index} className="block text-sm font-medium text-slate-700">
+                  Player {index + 1}
+                  <input
+                    type="text"
+                    value={player}
+                    onChange={(e) => onPlayersChange(index, e.target.value)}
+                    className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          <section className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+              Payouts by finish
+            </h2>
+            <div className="space-y-3">
+              <label className="block text-sm font-medium text-slate-700">
+                1st place collects
                 <input
                   type="text"
-                  value={player}
-                  onChange={(e) => onPlayersChange(index, e.target.value)}
+                  readOnly
+                  value={winnerCollects}
+                  className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-base text-slate-600"
+                />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                2nd place pays
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={payouts.second}
+                  onChange={(e) => onPayoutChange('second', e.target.value)}
                   className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
                 />
               </label>
-            ))}
-          </div>
-        </section>
+              <label className="block text-sm font-medium text-slate-700">
+                3rd place pays
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={payouts.third}
+                  onChange={(e) => onPayoutChange('third', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                4th place pays
+                <input
+                  type="number"
+                  inputMode="numeric"
+                  min={1}
+                  value={payouts.fourth}
+                  onChange={(e) => onPayoutChange('fourth', e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                />
+              </label>
+            </div>
+          </section>
 
-        <section className="mb-8">
-          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Payouts by finish
-          </h2>
-          <div className="space-y-3">
-            <label className="block text-sm font-medium text-slate-700">
-              1st place collects
-              <input
-                type="text"
-                readOnly
-                value={winnerCollects}
-                className="mt-1 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 text-base text-slate-600"
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              2nd place pays
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={payouts.second}
-                onChange={(e) => onPayoutChange('second', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              3rd place pays
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={payouts.third}
-                onChange={(e) => onPayoutChange('third', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              4th place pays
-              <input
-                type="number"
-                inputMode="numeric"
-                min={1}
-                value={payouts.fourth}
-                onChange={(e) => onPayoutChange('fourth', e.target.value)}
-                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-              />
-            </label>
-          </div>
-          <p className="mt-2 text-xs text-slate-500">
-            Rankings are set by total points after all 5 rounds. 1st collects what 2nd, 3rd, and 4th pay.
-          </p>
-        </section>
+          <button
+            type="button"
+            disabled={!canStart}
+            onClick={() => onStart(payouts)}
+            className="w-full rounded-xl bg-emerald-700 px-4 py-3.5 text-base font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+          >
+            Start Game
+          </button>
+        </div>
 
-        <button
-          type="button"
-          disabled={!canStart}
-          onClick={() => onStart(payouts)}
-          className="w-full rounded-xl bg-emerald-700 px-4 py-3.5 text-base font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
-        >
-          Start Game
-        </button>
+        <GameHistory history={history} onClear={onClearHistory} />
       </div>
     </div>
   )
-}
-
-function rankLabel(rank) {
-  if (rank === 1) return '1st'
-  if (rank === 2) return '2nd'
-  if (rank === 3) return '3rd'
-  if (rank === 4) return '4th'
-  return null
 }
 
 export default function App() {
@@ -261,6 +354,12 @@ export default function App() {
   const [payouts, setPayouts] = useState(DEFAULT_PAYOUTS)
   const [players, setPlayers] = useState(DEFAULT_PLAYERS)
   const [rounds, setRounds] = useState(createEmptyRounds)
+  const [history, setHistory] = useState(loadHistory)
+  const [gameArchived, setGameArchived] = useState(false)
+
+  useEffect(() => {
+    saveHistory(history)
+  }, [history])
 
   const roundScores = useMemo(
     () =>
@@ -289,6 +388,10 @@ export default function App() {
 
   const gameComplete = isGameComplete(rounds)
 
+  useEffect(() => {
+    if (!gameComplete) setGameArchived(false)
+  }, [gameComplete])
+
   const { money: moneyTotals, ranks } = useMemo(
     () => calculatePositionMoney(totals, payouts, gameComplete),
     [totals, payouts, gameComplete],
@@ -300,6 +403,13 @@ export default function App() {
   }, [gameComplete, totals])
 
   const winnerCollects = payouts.second + payouts.third + payouts.fourth
+
+  const archiveCurrentGame = () => {
+    if (!gameComplete || gameArchived) return
+    const entry = buildHistoryEntry(players, totals, ranks, moneyTotals, payouts)
+    setHistory((prev) => [entry, ...prev])
+    setGameArchived(true)
+  }
 
   const updatePlayerName = (index, name) => {
     setPlayers((prev) => prev.map((player, i) => (i === index ? name : player)))
@@ -337,11 +447,19 @@ export default function App() {
     setGameStarted(true)
   }
 
-  const resetGame = () => {
-    setGameStarted(false)
-    setPayouts(DEFAULT_PAYOUTS)
-    setPlayers(DEFAULT_PLAYERS)
+  const resetScores = () => {
+    archiveCurrentGame()
     setRounds(createEmptyRounds())
+  }
+
+  const newGame = () => {
+    archiveCurrentGame()
+    setGameStarted(false)
+    setRounds(createEmptyRounds())
+  }
+
+  const clearHistory = () => {
+    setHistory([])
   }
 
   if (!gameStarted) {
@@ -349,25 +467,45 @@ export default function App() {
       <SetupScreen
         players={players}
         payouts={payouts}
+        history={history}
         onPlayersChange={updatePlayerName}
         onPayoutChange={updatePayout}
         onStart={startGame}
+        onClearHistory={clearHistory}
       />
     )
   }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 pb-28 text-slate-800 sm:pb-8">
-      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
-        <header className="mb-4 text-center sm:mb-8">
-          <h1 className="text-2xl font-bold tracking-tight text-emerald-900 sm:text-4xl">
-            Call Break
-          </h1>
-          <p className="mt-1 text-sm text-slate-600 sm:mt-2 sm:text-base">
-            5 rounds · 2nd pays {payouts.second} · 3rd pays {payouts.third} · 4th pays {payouts.fourth}
-          </p>
-        </header>
+      <div className="sticky top-0 z-20 border-b border-slate-200/80 bg-white/95 px-3 py-3 backdrop-blur sm:px-4">
+        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3">
+          <div className="min-w-0">
+            <h1 className="truncate text-lg font-bold text-emerald-900 sm:text-xl">Call Break</h1>
+            <p className="truncate text-xs text-slate-500 sm:text-sm">
+              5 rounds · 2nd {payouts.second} · 3rd {payouts.third} · 4th {payouts.fourth}
+            </p>
+          </div>
+          <div className="flex shrink-0 gap-2">
+            <button
+              type="button"
+              onClick={resetScores}
+              className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50"
+            >
+              Reset
+            </button>
+            <button
+              type="button"
+              onClick={newGame}
+              className="rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            >
+              New Game
+            </button>
+          </div>
+        </div>
+      </div>
 
+      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
         {gameComplete && winnerIndex !== null && (
           <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-100 px-4 py-4 text-center shadow-lg sm:mb-6 sm:px-6 sm:py-5">
             <p className="text-xs font-semibold uppercase tracking-widest text-amber-800 sm:text-sm">
@@ -381,19 +519,6 @@ export default function App() {
             </p>
           </div>
         )}
-
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:mb-6">
-          <p className="text-xs text-slate-500 sm:text-sm">
-            1st collects {winnerCollects} · 2nd/3rd/4th pay {payouts.second}/{payouts.third}/{payouts.fourth}
-          </p>
-          <button
-            type="button"
-            onClick={resetGame}
-            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
-          >
-            New Game
-          </button>
-        </div>
 
         <div className="space-y-4 md:hidden">
           {rounds.map((round, roundIndex) => {
@@ -485,111 +610,119 @@ export default function App() {
               ))}
             </div>
           </section>
+
+          <GameHistory history={history} onClear={clearHistory} />
         </div>
 
-        <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xl md:block">
-          <table className="w-full border-collapse text-sm">
-            <thead>
-              <tr className="border-b border-slate-200 bg-emerald-900 text-white">
-                <th className="px-4 py-3 text-left font-semibold">Round</th>
-                {players.map((player, index) => (
-                  <th key={index} className="px-3 py-3 text-center font-semibold">
-                    <input
-                      type="text"
-                      value={player}
-                      onChange={(e) => updatePlayerName(index, e.target.value)}
-                      className="w-full rounded-md border border-emerald-700 bg-emerald-800 px-2 py-1 text-center font-semibold text-white focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300"
-                      aria-label={`Player ${index + 1} name`}
-                    />
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {rounds.map((round, roundIndex) => {
-                const wonSum = round.reduce((sum, entry) => {
-                  const won = parseNumber(entry.won)
-                  return won === null ? sum : sum + won
-                }, 0)
-                const hasWonValues = round.some((entry) => parseNumber(entry.won) !== null)
-                const wonMismatch = hasWonValues && wonSum !== 13
+        <div className="hidden md:block">
+          <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-slate-200 bg-emerald-900 text-white">
+                  <th className="px-4 py-3 text-left font-semibold">Round</th>
+                  {players.map((player, index) => (
+                    <th key={index} className="px-3 py-3 text-center font-semibold">
+                      <input
+                        type="text"
+                        value={player}
+                        onChange={(e) => updatePlayerName(index, e.target.value)}
+                        className="w-full rounded-md border border-emerald-700 bg-emerald-800 px-2 py-1 text-center font-semibold text-white focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        aria-label={`Player ${index + 1} name`}
+                      />
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {rounds.map((round, roundIndex) => {
+                  const wonSum = round.reduce((sum, entry) => {
+                    const won = parseNumber(entry.won)
+                    return won === null ? sum : sum + won
+                  }, 0)
+                  const hasWonValues = round.some((entry) => parseNumber(entry.won) !== null)
+                  const wonMismatch = hasWonValues && wonSum !== 13
 
-                return (
-                  <tr key={roundIndex} className="border-b border-slate-100 odd:bg-slate-50/60">
-                    <td className="px-4 py-4 align-top font-semibold text-emerald-900">
-                      <div>Round {roundIndex + 1}</div>
-                      {wonMismatch && (
-                        <div className="mt-2 rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
-                          Won total: {wonSum} (must be 13)
+                  return (
+                    <tr key={roundIndex} className="border-b border-slate-100 odd:bg-slate-50/60">
+                      <td className="px-4 py-4 align-top font-semibold text-emerald-900">
+                        <div>Round {roundIndex + 1}</div>
+                        {wonMismatch && (
+                          <div className="mt-2 rounded-md bg-red-100 px-2 py-1 text-xs font-medium text-red-700">
+                            Won total: {wonSum} (must be 13)
+                          </div>
+                        )}
+                      </td>
+                      {round.map((entry, playerIndex) => {
+                        const score = roundScores[roundIndex][playerIndex]
+
+                        return (
+                          <td key={playerIndex} className="px-3 py-3 align-top">
+                            <div className="space-y-2">
+                              <PlayerInputs
+                                entry={entry}
+                                roundIndex={roundIndex}
+                                playerIndex={playerIndex}
+                                onUpdate={updateCell}
+                              />
+                              <ScoreBadge score={score} />
+                            </div>
+                          </td>
+                        )
+                      })}
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="bg-emerald-950 text-white">
+                  <td className="px-4 py-4 font-bold">Total</td>
+                  {totals.map((total, index) => (
+                    <td key={index} className="px-3 py-4 text-center">
+                      {ranks[index] && (
+                        <div className="mb-1 text-xs font-medium text-emerald-300">
+                          {rankLabel(ranks[index])}
                         </div>
                       )}
-                    </td>
-                    {round.map((entry, playerIndex) => {
-                      const score = roundScores[roundIndex][playerIndex]
-
-                      return (
-                        <td key={playerIndex} className="px-3 py-3 align-top">
-                          <div className="space-y-2">
-                            <PlayerInputs
-                              entry={entry}
-                              roundIndex={roundIndex}
-                              playerIndex={playerIndex}
-                              onUpdate={updateCell}
-                            />
-                            <ScoreBadge score={score} />
-                          </div>
-                        </td>
-                      )
-                    })}
-                  </tr>
-                )
-              })}
-            </tbody>
-            <tfoot>
-              <tr className="bg-emerald-950 text-white">
-                <td className="px-4 py-4 font-bold">Total</td>
-                {totals.map((total, index) => (
-                  <td key={index} className="px-3 py-4 text-center">
-                    {ranks[index] && (
-                      <div className="mb-1 text-xs font-medium text-emerald-300">
-                        {rankLabel(ranks[index])}
+                      <div className="text-lg font-bold">{formatScore(total)} pts</div>
+                      <div
+                        className={`text-sm font-semibold ${
+                          moneyTotals[index] === null
+                            ? 'text-emerald-200/60'
+                            : moneyTotals[index] >= 0
+                              ? 'text-emerald-300'
+                              : 'text-red-300'
+                        }`}
+                      >
+                        {moneyTotals[index] === null ? '—' : formatMoney(moneyTotals[index])}
                       </div>
-                    )}
-                    <div className="text-lg font-bold">{formatScore(total)} pts</div>
-                    <div
-                      className={`text-sm font-semibold ${
-                        moneyTotals[index] === null
-                          ? 'text-emerald-200/60'
-                          : moneyTotals[index] >= 0
-                            ? 'text-emerald-300'
-                            : 'text-red-300'
-                      }`}
-                    >
-                      {moneyTotals[index] === null ? '—' : formatMoney(moneyTotals[index])}
-                    </div>
-                  </td>
-                ))}
-              </tr>
-            </tfoot>
-          </table>
-        </div>
+                    </td>
+                  ))}
+                </tr>
+              </tfoot>
+            </table>
+          </div>
 
-        <section className="mt-6 hidden rounded-xl border border-slate-200 bg-white p-5 text-left text-sm text-slate-600 shadow-sm sm:mt-8 md:block">
-          <h2 className="mb-2 font-semibold text-slate-800">Scoring Rules</h2>
-          <ul className="list-disc space-y-1 pl-5">
-            <li>
-              If Won ≥ Call: <strong>Score = Call + ((Won − Call) × 0.1)</strong>
-            </li>
-            <li>
-              If Won &lt; Call: <strong>Score = −Call</strong>
-            </li>
-            <li>The sum of Won hands in each round must equal 13.</li>
-            <li>
-              After all rounds: 1st collects {winnerCollects}, 2nd pays {payouts.second}, 3rd pays{' '}
-              {payouts.third}, 4th pays {payouts.fourth}.
-            </li>
-          </ul>
-        </section>
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
+            <section className="rounded-xl border border-slate-200 bg-white p-5 text-left text-sm text-slate-600 shadow-sm">
+              <h2 className="mb-2 font-semibold text-slate-800">Scoring Rules</h2>
+              <ul className="list-disc space-y-1 pl-5">
+                <li>
+                  If Won ≥ Call: <strong>Score = Call + ((Won − Call) × 0.1)</strong>
+                </li>
+                <li>
+                  If Won &lt; Call: <strong>Score = −Call</strong>
+                </li>
+                <li>The sum of Won hands in each round must equal 13.</li>
+                <li>
+                  After all rounds: 1st collects {winnerCollects}, 2nd pays {payouts.second}, 3rd pays{' '}
+                  {payouts.third}, 4th pays {payouts.fourth}.
+                </li>
+              </ul>
+            </section>
+
+            <GameHistory history={history} onClear={clearHistory} />
+          </div>
+        </div>
       </div>
 
       <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
