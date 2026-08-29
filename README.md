@@ -4,7 +4,7 @@ Scorekeeper and online multiplayer for a 4-player Call Break card game.
 
 ## Live app (full — scorekeeper + online play + voice)
 
-**https://replace-talks-mails-jones.trycloudflare.com**
+**https://raise-phil-andrews-conventions.trycloudflare.com**
 
 - **Play Online** — create a room, share the code, play with friends
 - **Talk** button — voice chat in the room
