@@ -4,10 +4,10 @@ Interactive 5-round scorekeeper for a 4-player Nepali Call Break card game.
 
 ## Live app
 
-**https://glossy-scaled-4tkcx6d.shipstatic.com**
+**https://turbo-portal-vg6w34k.shipstatic.com**
 
 To keep this deployment permanently (it expires after 3 days unless claimed), open:
-https://my.shipstatic.com/claim/2c1c8d6280277b579a2d5bacbb7aac28
+https://my.shipstatic.com/claim/edbca3e1fcc12dfe125a910644306293
 
 ## Local development
 
