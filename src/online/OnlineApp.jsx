@@ -46,8 +46,17 @@ export default function OnlineApp({ onBack }) {
   const [you, setYou] = useState(null)
   const [payouts, setPayouts] = useState(DEFAULT_PAYOUTS)
 
+  const [connected, setConnected] = useState(false)
+
   useEffect(() => {
     socket.connect()
+
+    socket.on('connect', () => setConnected(true))
+    socket.on('disconnect', () => setConnected(false))
+    socket.on('connect_error', () => {
+      setConnected(false)
+      setError('Could not reach the game server. Online play needs the full app host (npm start), not the static-only deploy.')
+    })
 
     socket.on('state', (payload) => {
       setRoom(payload.room)
@@ -114,6 +123,9 @@ export default function OnlineApp({ onBack }) {
             <p className="mt-2 text-sm text-slate-600">
               Create a room, share the code with 3 friends, and play Call Break together.
             </p>
+            {!connected && !error && (
+              <p className="mt-2 text-sm text-amber-700">Connecting to game server…</p>
+            )}
 
             <label className="mt-6 block text-sm font-medium text-slate-700">
               Your name
