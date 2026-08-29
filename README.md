@@ -4,10 +4,10 @@ Interactive 5-round scorekeeper for a 4-player Call Break card game.
 
 ## Live app
 
-**https://split-sender-y3nea7h.shipstatic.com**
+**https://silent-veil-5eqqg6c.shipstatic.com**
 
 To keep this deployment permanently (it expires after 3 days unless claimed), open:
-https://my.shipstatic.com/claim/0c8224f259b425b029e1b5cb9ad693ef
+https://my.shipstatic.com/claim/119afb0c15d81bb870d7dab57dc07a78
 
 ## Local development
 
