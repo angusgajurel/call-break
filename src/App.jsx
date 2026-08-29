@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 
 const DEFAULT_PLAYERS = ['Anup', 'Dev', 'Sushil', 'Roshan']
+const DEFAULT_STAKES = [5, 10, 15]
 const ROUNDS = 5
 const PLAYERS = 4
 
@@ -31,6 +32,12 @@ function formatScore(score) {
   return score.toFixed(1)
 }
 
+function formatMoney(amount) {
+  if (amount === null || amount === undefined) return '—'
+  const prefix = amount >= 0 ? '+' : '−'
+  return `${prefix}Rs ${Math.abs(amount).toFixed(amount % 1 === 0 ? 0 : 1)}`
+}
+
 function isRoundComplete(round) {
   return round.every((entry) => {
     const call = parseNumber(entry.call)
@@ -43,7 +50,162 @@ function isGameComplete(rounds) {
   return rounds.every(isRoundComplete)
 }
 
+function ScoreBadge({ score }) {
+  return (
+    <div
+      className={`rounded-lg px-2 py-1.5 text-center text-xs font-semibold sm:text-sm ${
+        score === null
+          ? 'bg-slate-100 text-slate-500'
+          : score >= 0
+            ? 'bg-emerald-100 text-emerald-800'
+            : 'bg-red-100 text-red-700'
+      }`}
+    >
+      {score === null ? '—' : formatScore(score)}
+    </div>
+  )
+}
+
+function MoneyBadge({ amount, large = false }) {
+  const positive = amount >= 0
+  return (
+    <div
+      className={`rounded-lg px-2 py-1.5 text-center font-semibold ${
+        large ? 'text-base sm:text-lg' : 'text-xs sm:text-sm'
+      } ${
+        positive ? 'bg-emerald-50 text-emerald-700' : 'bg-red-50 text-red-700'
+      }`}
+    >
+      {formatMoney(amount)}
+    </div>
+  )
+}
+
+function PlayerInputs({ entry, roundIndex, playerIndex, onUpdate }) {
+  return (
+    <div className="grid grid-cols-2 gap-2">
+      <label className="block text-xs font-medium text-slate-500">
+        Call
+        <input
+          type="number"
+          inputMode="numeric"
+          min={1}
+          max={8}
+          placeholder="1–8"
+          value={entry.call}
+          onChange={(e) => onUpdate(roundIndex, playerIndex, 'call', e.target.value)}
+          className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2.5 text-center text-base text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+        />
+      </label>
+      <label className="block text-xs font-medium text-slate-500">
+        Won
+        <input
+          type="number"
+          inputMode="numeric"
+          min={0}
+          max={13}
+          placeholder="0–13"
+          value={entry.won}
+          onChange={(e) => onUpdate(roundIndex, playerIndex, 'won', e.target.value)}
+          className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2.5 text-center text-base text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+        />
+      </label>
+    </div>
+  )
+}
+
+function SetupScreen({ players, stake, customStake, onPlayersChange, onStakeChange, onCustomStakeChange, onStart }) {
+  const resolvedStake = customStake !== '' ? Number(customStake) : stake
+  const canStart =
+    players.every((name) => name.trim().length > 0) &&
+    Number.isFinite(resolvedStake) &&
+    resolvedStake > 0
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8">
+      <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
+        <header className="mb-6 text-center">
+          <h1 className="text-2xl font-bold text-emerald-900 sm:text-3xl">Nepali Call Break</h1>
+          <p className="mt-2 text-sm text-slate-600">Set up players and stake before starting</p>
+        </header>
+
+        <section className="mb-6">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Players
+          </h2>
+          <div className="space-y-3">
+            {players.map((player, index) => (
+              <label key={index} className="block text-sm font-medium text-slate-700">
+                Player {index + 1}
+                <input
+                  type="text"
+                  value={player}
+                  onChange={(e) => onPlayersChange(index, e.target.value)}
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                />
+              </label>
+            ))}
+          </div>
+        </section>
+
+        <section className="mb-8">
+          <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
+            Stake per point (Rs)
+          </h2>
+          <div className="grid grid-cols-3 gap-2">
+            {DEFAULT_STAKES.map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => {
+                  onStakeChange(value)
+                  onCustomStakeChange('')
+                }}
+                className={`rounded-xl border px-3 py-3 text-base font-semibold transition ${
+                  stake === value && customStake === ''
+                    ? 'border-emerald-600 bg-emerald-600 text-white'
+                    : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-400'
+                }`}
+              >
+                Rs {value}
+              </button>
+            ))}
+          </div>
+          <label className="mt-3 block text-sm font-medium text-slate-700">
+            Custom amount
+            <input
+              type="number"
+              inputMode="numeric"
+              min={1}
+              placeholder="Enter custom stake"
+              value={customStake}
+              onChange={(e) => onCustomStakeChange(e.target.value)}
+              className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 text-base focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+            />
+          </label>
+          <p className="mt-2 text-xs text-slate-500">
+            Money = total points × stake. Example: 3.1 points at Rs 10 = Rs 31.
+          </p>
+        </section>
+
+        <button
+          type="button"
+          disabled={!canStart}
+          onClick={() => onStart(resolvedStake)}
+          className="w-full rounded-xl bg-emerald-700 px-4 py-3.5 text-base font-semibold text-white transition hover:bg-emerald-600 disabled:cursor-not-allowed disabled:bg-slate-300"
+        >
+          Start Game
+        </button>
+      </div>
+    </div>
+  )
+}
+
 export default function App() {
+  const [gameStarted, setGameStarted] = useState(false)
+  const [stakePerPoint, setStakePerPoint] = useState(10)
+  const [setupStake, setSetupStake] = useState(10)
+  const [customStake, setCustomStake] = useState('')
   const [players, setPlayers] = useState(DEFAULT_PLAYERS)
   const [rounds, setRounds] = useState(createEmptyRounds)
 
@@ -70,6 +232,11 @@ export default function App() {
         Array(PLAYERS).fill(0),
       ),
     [roundScores],
+  )
+
+  const moneyTotals = useMemo(
+    () => totals.map((total) => total * stakePerPoint),
+    [totals, stakePerPoint],
   )
 
   const gameComplete = isGameComplete(rounds)
@@ -107,47 +274,162 @@ export default function App() {
     )
   }
 
+  const startGame = (stake) => {
+    setStakePerPoint(stake)
+    setGameStarted(true)
+  }
+
   const resetGame = () => {
+    setGameStarted(false)
+    setStakePerPoint(10)
+    setSetupStake(10)
+    setCustomStake('')
     setPlayers(DEFAULT_PLAYERS)
     setRounds(createEmptyRounds())
   }
 
+  if (!gameStarted) {
+    return (
+      <SetupScreen
+        players={players}
+        stake={setupStake}
+        customStake={customStake}
+        onPlayersChange={updatePlayerName}
+        onStakeChange={setSetupStake}
+        onCustomStakeChange={setCustomStake}
+        onStart={startGame}
+      />
+    )
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8 text-slate-800">
-      <div className="mx-auto max-w-6xl">
-        <header className="mb-8 text-center">
-          <h1 className="text-3xl font-bold tracking-tight text-emerald-900 sm:text-4xl">
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 pb-28 text-slate-800 sm:pb-8">
+      <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
+        <header className="mb-4 text-center sm:mb-8">
+          <h1 className="text-2xl font-bold tracking-tight text-emerald-900 sm:text-4xl">
             Nepali Call Break
           </h1>
-          <p className="mt-2 text-slate-600">5-round scorekeeper for 4 players</p>
+          <p className="mt-1 text-sm text-slate-600 sm:mt-2 sm:text-base">
+            5 rounds · Rs {stakePerPoint} per point
+          </p>
         </header>
 
         {gameComplete && winnerIndex !== null && (
-          <div className="mb-6 rounded-2xl border-2 border-amber-400 bg-amber-100 px-6 py-5 text-center shadow-lg">
-            <p className="text-sm font-semibold uppercase tracking-widest text-amber-800">
+          <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-100 px-4 py-4 text-center shadow-lg sm:mb-6 sm:px-6 sm:py-5">
+            <p className="text-xs font-semibold uppercase tracking-widest text-amber-800 sm:text-sm">
               Winner
             </p>
-            <p className="mt-1 text-3xl font-bold text-amber-950">
+            <p className="mt-1 text-2xl font-bold text-amber-950 sm:text-3xl">
               {players[winnerIndex]}
             </p>
-            <p className="mt-1 text-lg text-amber-900">
-              {formatScore(totals[winnerIndex])} total points
+            <p className="mt-1 text-base text-amber-900 sm:text-lg">
+              {formatScore(totals[winnerIndex])} pts · {formatMoney(moneyTotals[winnerIndex])}
             </p>
           </div>
         )}
 
-        <div className="mb-6 flex justify-end">
+        <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:mb-6">
+          <p className="text-xs text-slate-500 sm:text-sm">Stake: Rs {stakePerPoint} / point</p>
           <button
             type="button"
             onClick={resetGame}
-            className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white transition hover:bg-slate-700"
+            className="rounded-lg bg-slate-800 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700"
           >
-            Reset Game
+            New Game
           </button>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xl">
-          <table className="w-full min-w-[900px] border-collapse text-sm">
+        {/* Mobile: card layout */}
+        <div className="space-y-4 md:hidden">
+          {rounds.map((round, roundIndex) => {
+            const wonSum = round.reduce((sum, entry) => {
+              const won = parseNumber(entry.won)
+              return won === null ? sum : sum + won
+            }, 0)
+            const hasWonValues = round.some((entry) => parseNumber(entry.won) !== null)
+            const wonMismatch = hasWonValues && wonSum !== 13
+
+            return (
+              <section
+                key={roundIndex}
+                className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm"
+              >
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <h2 className="text-lg font-bold text-emerald-900">Round {roundIndex + 1}</h2>
+                  {wonMismatch && (
+                    <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                      Won: {wonSum}/13
+                    </span>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  {round.map((entry, playerIndex) => {
+                    const score = roundScores[roundIndex][playerIndex]
+                    const money = score === null ? null : score * stakePerPoint
+
+                    return (
+                      <div
+                        key={playerIndex}
+                        className="rounded-xl border border-slate-100 bg-slate-50/80 p-3"
+                      >
+                        <div className="mb-2 flex items-center justify-between gap-2">
+                          <input
+                            type="text"
+                            value={players[playerIndex]}
+                            onChange={(e) => updatePlayerName(playerIndex, e.target.value)}
+                            className="min-w-0 flex-1 rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm font-semibold text-emerald-900 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
+                            aria-label={`Player ${playerIndex + 1} name`}
+                          />
+                          <div className="flex shrink-0 gap-1.5">
+                            <ScoreBadge score={score} />
+                            {money !== null && <MoneyBadge amount={money} />}
+                          </div>
+                        </div>
+                        <PlayerInputs
+                          entry={entry}
+                          roundIndex={roundIndex}
+                          playerIndex={playerIndex}
+                          onUpdate={updateCell}
+                        />
+                      </div>
+                    )
+                  })}
+                </div>
+              </section>
+            )
+          })}
+
+          <section className="rounded-2xl border border-emerald-900 bg-emerald-950 p-4 text-white shadow-lg">
+            <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-emerald-200">
+              Totals
+            </h2>
+            <div className="space-y-2">
+              {players.map((player, index) => (
+                <div
+                  key={index}
+                  className="flex items-center justify-between rounded-xl bg-emerald-900/60 px-3 py-2.5"
+                >
+                  <span className="font-medium">{player}</span>
+                  <div className="text-right">
+                    <div className="text-sm font-bold">{formatScore(totals[index])} pts</div>
+                    <div
+                      className={`text-sm font-semibold ${
+                        moneyTotals[index] >= 0 ? 'text-emerald-300' : 'text-red-300'
+                      }`}
+                    >
+                      {formatMoney(moneyTotals[index])}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+
+        {/* Desktop: table layout */}
+        <div className="hidden overflow-x-auto rounded-2xl border border-slate-200 bg-white shadow-xl md:block">
+          <table className="w-full border-collapse text-sm">
             <thead>
               <tr className="border-b border-slate-200 bg-emerald-900 text-white">
                 <th className="px-4 py-3 text-left font-semibold">Round</th>
@@ -157,7 +439,7 @@ export default function App() {
                       type="text"
                       value={player}
                       onChange={(e) => updatePlayerName(index, e.target.value)}
-                      className="w-full rounded-md border border-emerald-700 bg-emerald-800 px-2 py-1 text-center font-semibold text-white placeholder-emerald-300 focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                      className="w-full rounded-md border border-emerald-700 bg-emerald-800 px-2 py-1 text-center font-semibold text-white focus:border-amber-300 focus:outline-none focus:ring-2 focus:ring-amber-300"
                       aria-label={`Player ${index + 1} name`}
                     />
                   </th>
@@ -174,10 +456,7 @@ export default function App() {
                 const wonMismatch = hasWonValues && wonSum !== 13
 
                 return (
-                  <tr
-                    key={roundIndex}
-                    className="border-b border-slate-100 odd:bg-slate-50/60"
-                  >
+                  <tr key={roundIndex} className="border-b border-slate-100 odd:bg-slate-50/60">
                     <td className="px-4 py-4 align-top font-semibold text-emerald-900">
                       <div>Round {roundIndex + 1}</div>
                       {wonMismatch && (
@@ -188,57 +467,19 @@ export default function App() {
                     </td>
                     {round.map((entry, playerIndex) => {
                       const score = roundScores[roundIndex][playerIndex]
+                      const money = score === null ? null : score * stakePerPoint
 
                       return (
                         <td key={playerIndex} className="px-3 py-3 align-top">
                           <div className="space-y-2">
-                            <label className="block text-left text-xs font-medium text-slate-500">
-                              Call (1–8)
-                              <input
-                                type="number"
-                                min={1}
-                                max={8}
-                                value={entry.call}
-                                onChange={(e) =>
-                                  updateCell(
-                                    roundIndex,
-                                    playerIndex,
-                                    'call',
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-center text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                              />
-                            </label>
-                            <label className="block text-left text-xs font-medium text-slate-500">
-                              Won (0–13)
-                              <input
-                                type="number"
-                                min={0}
-                                max={13}
-                                value={entry.won}
-                                onChange={(e) =>
-                                  updateCell(
-                                    roundIndex,
-                                    playerIndex,
-                                    'won',
-                                    e.target.value,
-                                  )
-                                }
-                                className="mt-1 w-full rounded-md border border-slate-300 px-2 py-1.5 text-center text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
-                              />
-                            </label>
-                            <div
-                              className={`rounded-md px-2 py-1 text-center text-xs font-semibold ${
-                                score === null
-                                  ? 'bg-slate-100 text-slate-500'
-                                  : score >= 0
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : 'bg-red-100 text-red-700'
-                              }`}
-                            >
-                              Score: {formatScore(score)}
-                            </div>
+                            <PlayerInputs
+                              entry={entry}
+                              roundIndex={roundIndex}
+                              playerIndex={playerIndex}
+                              onUpdate={updateCell}
+                            />
+                            <ScoreBadge score={score} />
+                            {money !== null && <MoneyBadge amount={money} />}
                           </div>
                         </td>
                       )
@@ -249,10 +490,17 @@ export default function App() {
             </tbody>
             <tfoot>
               <tr className="bg-emerald-950 text-white">
-                <td className="px-4 py-4 font-bold">Total Points</td>
+                <td className="px-4 py-4 font-bold">Total</td>
                 {totals.map((total, index) => (
-                  <td key={index} className="px-3 py-4 text-center text-lg font-bold">
-                    {formatScore(total)}
+                  <td key={index} className="px-3 py-4 text-center">
+                    <div className="text-lg font-bold">{formatScore(total)} pts</div>
+                    <div
+                      className={`text-sm font-semibold ${
+                        moneyTotals[index] >= 0 ? 'text-emerald-300' : 'text-red-300'
+                      }`}
+                    >
+                      {formatMoney(moneyTotals[index])}
+                    </div>
                   </td>
                 ))}
               </tr>
@@ -260,7 +508,7 @@ export default function App() {
           </table>
         </div>
 
-        <section className="mt-8 rounded-xl border border-slate-200 bg-white p-5 text-left text-sm text-slate-600 shadow-sm">
+        <section className="mt-6 hidden rounded-xl border border-slate-200 bg-white p-5 text-left text-sm text-slate-600 shadow-sm sm:mt-8 md:block">
           <h2 className="mb-2 font-semibold text-slate-800">Scoring Rules</h2>
           <ul className="list-disc space-y-1 pl-5">
             <li>
@@ -270,8 +518,30 @@ export default function App() {
               If Won &lt; Call: <strong>Score = −Call</strong>
             </li>
             <li>The sum of Won hands in each round must equal 13.</li>
+            <li>
+              Money = total points × Rs {stakePerPoint} stake per point.
+            </li>
           </ul>
         </section>
+      </div>
+
+      {/* Mobile sticky totals bar */}
+      <div className="fixed inset-x-0 bottom-0 border-t border-slate-200 bg-white/95 px-3 py-2 shadow-[0_-4px_20px_rgba(0,0,0,0.08)] backdrop-blur md:hidden">
+        <div className="mx-auto grid max-w-6xl grid-cols-4 gap-1">
+          {players.map((player, index) => (
+            <div key={index} className="min-w-0 text-center">
+              <div className="truncate text-[10px] font-medium text-slate-500">{player}</div>
+              <div className="text-xs font-bold text-emerald-900">{formatScore(totals[index])}</div>
+              <div
+                className={`text-[10px] font-semibold ${
+                  moneyTotals[index] >= 0 ? 'text-emerald-600' : 'text-red-600'
+                }`}
+              >
+                {formatMoney(moneyTotals[index])}
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     </div>
   )
