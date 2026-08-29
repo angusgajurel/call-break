@@ -32,6 +32,44 @@ function CardButton({ card, onPlay, disabled }) {
   )
 }
 
+function CardBadge({ card }) {
+  return (
+    <span
+      className={`inline-flex rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-semibold shadow-sm ${suitColor(card.s)}`}
+    >
+      {cardLabel(card)}
+    </span>
+  )
+}
+
+function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay }) {
+  if (!hand?.length) return null
+
+  const canPlay = phase === 'playing' && currentTurn === mySeat
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+      <h3 className="mb-3 font-semibold text-slate-800">
+        Your hand <span className="text-sm font-normal text-slate-500">({hand.length} cards)</span>
+      </h3>
+      <div className="flex flex-wrap gap-2">
+        {hand.map((card) =>
+          phase === 'playing' ? (
+            <CardButton
+              key={card.id}
+              card={card}
+              disabled={!canPlay}
+              onPlay={onPlay}
+            />
+          ) : (
+            <CardBadge key={card.id} card={card} />
+          ),
+        )}
+      </div>
+    </div>
+  )
+}
+
 export default function OnlineApp({ onBack }) {
   const [socket] = useState(() => createGameSocket())
   const [screen, setScreen] = useState('menu')
@@ -390,27 +428,31 @@ export default function OnlineApp({ onBack }) {
             </div>
 
             {game.phase === 'bidding' && (
-              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                <h3 className="font-semibold text-amber-900">Place your call (1–8)</h3>
-                {game.calls[mySeat] !== null ? (
-                  <p className="mt-2 text-sm text-amber-800">
-                    Your call: {game.calls[mySeat]}. Waiting for others…
-                  </p>
-                ) : (
-                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
-                    {[1, 2, 3, 4, 5, 6, 7, 8].map((call) => (
-                      <button
-                        key={call}
-                        type="button"
-                        onClick={() => submitCall(call)}
-                        className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
-                      >
-                        {call}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
+              <>
+                <HandDisplay hand={game.hand} phase={game.phase} />
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                  <h3 className="font-semibold text-amber-900">Place your call (1–8)</h3>
+                  <p className="mt-1 text-sm text-amber-800">Look at your hand above, then pick your call.</p>
+                  {game.calls[mySeat] !== null ? (
+                    <p className="mt-2 text-sm text-amber-800">
+                      Your call: {game.calls[mySeat]}. Waiting for others…
+                    </p>
+                  ) : (
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+                      {[1, 2, 3, 4, 5, 6, 7, 8].map((call) => (
+                        <button
+                          key={call}
+                          type="button"
+                          onClick={() => submitCall(call)}
+                          className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
+                        >
+                          {call}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
 
             <div className="rounded-2xl border border-emerald-900 bg-emerald-950 p-4 text-white">
@@ -450,19 +492,13 @@ export default function OnlineApp({ onBack }) {
             </div>
 
             {game.phase === 'playing' && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <h3 className="mb-3 font-semibold text-slate-800">Your hand</h3>
-                <div className="flex flex-wrap gap-2">
-                  {game.hand.map((card) => (
-                    <CardButton
-                      key={card.id}
-                      card={card}
-                      disabled={game.currentTurn !== mySeat}
-                      onPlay={playCard}
-                    />
-                  ))}
-                </div>
-              </div>
+              <HandDisplay
+                hand={game.hand}
+                phase={game.phase}
+                currentTurn={game.currentTurn}
+                mySeat={mySeat}
+                onPlay={playCard}
+              />
             )}
 
             {game.gameComplete && (
