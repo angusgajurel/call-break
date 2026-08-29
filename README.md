@@ -4,10 +4,10 @@ Interactive 5-round scorekeeper for a 4-player Call Break card game.
 
 ## Live app
 
-**https://astral-seed-pa6x3ec.shipstatic.com**
+**https://split-sender-y3nea7h.shipstatic.com**
 
 To keep this deployment permanently (it expires after 3 days unless claimed), open:
-https://my.shipstatic.com/claim/c77201377ff8eccb508071a81924d54d
+https://my.shipstatic.com/claim/0c8224f259b425b029e1b5cb9ad693ef
 
 ## Local development
 
