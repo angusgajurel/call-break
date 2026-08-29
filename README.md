@@ -4,10 +4,10 @@ Interactive 5-round scorekeeper for a 4-player Nepali Call Break card game.
 
 ## Live app
 
-**https://unveiled-mind-6ye6qnc.shipstatic.com**
+**https://glossy-scaled-4tkcx6d.shipstatic.com**
 
 To keep this deployment permanently (it expires after 3 days unless claimed), open:
-https://my.shipstatic.com/claim/bc4f17b0c3d36f4b8fa093219edcf35d
+https://my.shipstatic.com/claim/2c1c8d6280277b579a2d5bacbb7aac28
 
 ## Local development
 
