@@ -35,7 +35,7 @@ function formatScore(score) {
 function formatMoney(amount) {
   if (amount === null || amount === undefined) return '—'
   const prefix = amount >= 0 ? '+' : '−'
-  return `${prefix}Rs ${Math.abs(amount).toFixed(amount % 1 === 0 ? 0 : 1)}`
+  return `${prefix}${Math.abs(amount).toFixed(amount % 1 === 0 ? 0 : 1)}`
 }
 
 function isRoundComplete(round) {
@@ -150,7 +150,7 @@ function SetupScreen({ players, stake, customStake, onPlayersChange, onStakeChan
 
         <section className="mb-8">
           <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-slate-500">
-            Stake per point (Rs)
+            Stake per point
           </h2>
           <div className="grid grid-cols-3 gap-2">
             {DEFAULT_STAKES.map((value) => (
@@ -167,7 +167,7 @@ function SetupScreen({ players, stake, customStake, onPlayersChange, onStakeChan
                     : 'border-slate-300 bg-white text-slate-700 hover:border-emerald-400'
                 }`}
               >
-                Rs {value}
+                {value}
               </button>
             ))}
           </div>
@@ -184,7 +184,7 @@ function SetupScreen({ players, stake, customStake, onPlayersChange, onStakeChan
             />
           </label>
           <p className="mt-2 text-xs text-slate-500">
-            Money = total points × stake. Example: 3.1 points at Rs 10 = Rs 31.
+            Money = total points × stake. Example: 3.1 points at 10 = 31.
           </p>
         </section>
 
@@ -310,7 +310,7 @@ export default function App() {
             Nepali Call Break
           </h1>
           <p className="mt-1 text-sm text-slate-600 sm:mt-2 sm:text-base">
-            5 rounds · Rs {stakePerPoint} per point
+            5 rounds · {stakePerPoint} per point
           </p>
         </header>
 
@@ -329,7 +329,7 @@ export default function App() {
         )}
 
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2 sm:mb-6">
-          <p className="text-xs text-slate-500 sm:text-sm">Stake: Rs {stakePerPoint} / point</p>
+          <p className="text-xs text-slate-500 sm:text-sm">Stake: {stakePerPoint} / point</p>
           <button
             type="button"
             onClick={resetGame}
@@ -519,7 +519,7 @@ export default function App() {
             </li>
             <li>The sum of Won hands in each round must equal 13.</li>
             <li>
-              Money = total points × Rs {stakePerPoint} stake per point.
+              Money = total points × {stakePerPoint} stake per point.
             </li>
           </ul>
         </section>
