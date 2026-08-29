@@ -36,6 +36,7 @@ if (fs.existsSync(path.join(distPath, 'index.html'))) {
 }
 
 function getRoom(code) {
+  if (!code) return undefined
   return rooms.get(code.toUpperCase())
 }
 
