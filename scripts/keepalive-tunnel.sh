@@ -12,7 +12,7 @@ fi
 
 while true; do
   echo "[$(date -Is)] Starting Cloudflare tunnel -> localhost:$PORT" | tee -a "$LOG"
-  "$CLOUDFLARED" tunnel --url "http://localhost:$PORT" 2>&1 | tee -a "$LOG" || true
+  "$CLOUDFLARED" tunnel --url "http://127.0.0.1:$PORT" 2>&1 | tee -a "$LOG" || true
   echo "[$(date -Is)] Tunnel exited, restarting in 5s..." | tee -a "$LOG"
   sleep 5
 done
