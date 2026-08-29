@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "deploy": "npm run build && npx -y @shipstatic/ship ./dist --json",
     "lint": "oxlint",
     "preview": "vite preview"
   },
