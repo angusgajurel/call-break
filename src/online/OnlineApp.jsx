@@ -1,0 +1,362 @@
+import { useEffect, useMemo, useState } from 'react'
+import { io } from 'socket.io-client'
+import {
+  DEFAULT_PAYOUTS,
+  formatMoney,
+  formatScore,
+  rankLabel,
+} from '../lib/scoring.js'
+
+const SOCKET_URL = import.meta.env.VITE_SOCKET_URL || ''
+
+function cardLabel(card) {
+  const rankMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
+  const suitMap = { S: '♠', H: '♥', D: '♦', C: '♣' }
+  const rank = rankMap[card.r] || String(card.r)
+  return `${rank}${suitMap[card.s]}`
+}
+
+function suitColor(suit) {
+  return suit === 'H' || suit === 'D' ? 'text-red-600' : 'text-slate-900'
+}
+
+function CardButton({ card, onPlay, disabled }) {
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={() => onPlay(card.id)}
+      className={`rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm font-semibold shadow-sm transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 ${suitColor(card.s)}`}
+    >
+      {cardLabel(card)}
+    </button>
+  )
+}
+
+export default function OnlineApp({ onBack }) {
+  const [socket] = useState(() =>
+    io(SOCKET_URL, { autoConnect: false, transports: ['websocket', 'polling'] }),
+  )
+  const [screen, setScreen] = useState('menu')
+  const [name, setName] = useState('')
+  const [roomCode, setRoomCode] = useState('')
+  const [error, setError] = useState('')
+  const [room, setRoom] = useState(null)
+  const [game, setGame] = useState(null)
+  const [you, setYou] = useState(null)
+  const [payouts, setPayouts] = useState(DEFAULT_PAYOUTS)
+
+  useEffect(() => {
+    socket.connect()
+
+    socket.on('state', (payload) => {
+      setRoom(payload.room)
+      setGame(payload.game)
+      setYou(payload.you)
+      setError('')
+      if (payload.room) setScreen('room')
+    })
+
+    socket.on('error-msg', (message) => setError(message))
+
+    return () => {
+      socket.disconnect()
+    }
+  }, [socket])
+
+  const players = room?.players ?? []
+  const isHost = room && you && room.hostId === you.id
+  const mySeat = you?.seat ?? 0
+
+  const playerNames = useMemo(() => {
+    const names = Array(4).fill('—')
+    players.forEach((player) => {
+      names[player.seat] = player.name
+    })
+    return names
+  }, [players])
+
+  const createRoom = () => {
+    if (!name.trim()) {
+      setError('Enter your name')
+      return
+    }
+    socket.emit('create-room', { name: name.trim(), payouts })
+  }
+
+  const joinRoom = () => {
+    if (!name.trim() || !roomCode.trim()) {
+      setError('Enter your name and room code')
+      return
+    }
+    socket.emit('join-room', { code: roomCode.trim().toUpperCase(), name: name.trim() })
+  }
+
+  const startGame = () => socket.emit('start-game')
+  const submitCall = (call) => socket.emit('submit-call', { call })
+  const playCard = (cardId) => socket.emit('play-card', { cardId })
+  const leaveRoom = () => {
+    socket.emit('leave-room')
+    setRoom(null)
+    setGame(null)
+    setScreen('menu')
+  }
+
+  if (screen === 'menu') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8">
+        <div className="mx-auto w-full max-w-lg space-y-4">
+          <button type="button" onClick={onBack} className="text-sm text-slate-500 hover:text-slate-800">
+            ← Back
+          </button>
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
+            <h1 className="text-2xl font-bold text-emerald-900">Play Online</h1>
+            <p className="mt-2 text-sm text-slate-600">
+              Create a room, share the code with 3 friends, and play Call Break together.
+            </p>
+
+            <label className="mt-6 block text-sm font-medium text-slate-700">
+              Your name
+              <input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+                placeholder="Enter your name"
+              />
+            </label>
+
+            <div className="mt-4 grid grid-cols-3 gap-2 text-sm">
+              <label className="block">
+                2nd pays
+                <input
+                  type="number"
+                  min={1}
+                  value={payouts.second}
+                  onChange={(e) =>
+                    setPayouts((prev) => ({ ...prev, second: Number(e.target.value) || 1 }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-center"
+                />
+              </label>
+              <label className="block">
+                3rd pays
+                <input
+                  type="number"
+                  min={1}
+                  value={payouts.third}
+                  onChange={(e) =>
+                    setPayouts((prev) => ({ ...prev, third: Number(e.target.value) || 1 }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-center"
+                />
+              </label>
+              <label className="block">
+                4th pays
+                <input
+                  type="number"
+                  min={1}
+                  value={payouts.fourth}
+                  onChange={(e) =>
+                    setPayouts((prev) => ({ ...prev, fourth: Number(e.target.value) || 1 }))
+                  }
+                  className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2 text-center"
+                />
+              </label>
+            </div>
+
+            {error && <p className="mt-3 text-sm text-red-600">{error}</p>}
+
+            <button
+              type="button"
+              onClick={createRoom}
+              className="mt-6 w-full rounded-xl bg-emerald-700 py-3 font-semibold text-white hover:bg-emerald-600"
+            >
+              Create Room
+            </button>
+
+            <div className="my-6 flex items-center gap-3 text-xs text-slate-400">
+              <div className="h-px flex-1 bg-slate-200" />
+              OR JOIN
+              <div className="h-px flex-1 bg-slate-200" />
+            </div>
+
+            <label className="block text-sm font-medium text-slate-700">
+              Room code
+              <input
+                value={roomCode}
+                onChange={(e) => setRoomCode(e.target.value.toUpperCase())}
+                className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5 uppercase tracking-widest"
+                placeholder="ABC123"
+                maxLength={6}
+              />
+            </label>
+            <button
+              type="button"
+              onClick={joinRoom}
+              className="mt-4 w-full rounded-xl border border-emerald-700 py-3 font-semibold text-emerald-800 hover:bg-emerald-50"
+            >
+              Join Room
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-3 py-4 pb-24">
+      <div className="mx-auto max-w-4xl">
+        <div className="mb-4 flex items-center justify-between gap-2">
+          <div>
+            <h1 className="text-xl font-bold text-emerald-900">Call Break Online</h1>
+            <p className="text-sm text-slate-500">
+              Room <span className="font-mono font-bold text-emerald-800">{room?.code}</span>
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={leaveRoom}
+            className="rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm"
+          >
+            Leave
+          </button>
+        </div>
+
+        {error && <p className="mb-3 rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
+
+        {room?.status === 'lobby' && (
+          <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <h2 className="font-semibold text-slate-800">Waiting for players ({players.length}/4)</h2>
+            <ul className="mt-3 space-y-2">
+              {players.map((player) => (
+                <li key={player.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
+                  <span>{player.name}</span>
+                  <span className="text-xs text-slate-500">
+                    Seat {player.seat + 1}
+                    {player.id === room.hostId ? ' · Host' : ''}
+                    {!player.connected ? ' · Offline' : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            {isHost && (
+              <button
+                type="button"
+                disabled={players.length !== 4}
+                onClick={startGame}
+                className="mt-4 w-full rounded-xl bg-emerald-700 py-3 font-semibold text-white disabled:bg-slate-300"
+              >
+                Start Game
+              </button>
+            )}
+            {!isHost && (
+              <p className="mt-4 text-center text-sm text-slate-500">Waiting for host to start…</p>
+            )}
+          </div>
+        )}
+
+        {game && (
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="font-semibold text-emerald-900">
+                  Round {game.round}/5 · {game.phase === 'bidding' ? 'Bidding' : game.phase === 'playing' ? 'Playing' : 'Finished'}
+                </p>
+                <p className="text-sm text-slate-500">Dealer: {playerNames[game.dealer]}</p>
+              </div>
+
+              {game.phase === 'playing' && (
+                <p className="mt-2 text-sm text-slate-600">
+                  Turn: <strong>{playerNames[game.currentTurn]}</strong>
+                  {game.currentTurn === mySeat ? ' (you)' : ''}
+                </p>
+              )}
+
+              {game.currentTrick?.cards?.length > 0 && (
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {game.currentTrick.cards.map((play) => (
+                    <div key={`${play.seat}-${play.card.id}`} className="rounded-lg bg-slate-100 px-3 py-2 text-sm">
+                      {playerNames[play.seat]}: <span className={suitColor(play.card.s)}>{cardLabel(play.card)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {game.phase === 'bidding' && (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <h3 className="font-semibold text-amber-900">Place your call (1–8)</h3>
+                {game.calls[mySeat] !== null ? (
+                  <p className="mt-2 text-sm text-amber-800">Your call: {game.calls[mySeat]}. Waiting for others…</p>
+                ) : (
+                  <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map((call) => (
+                      <button
+                        key={call}
+                        type="button"
+                        onClick={() => submitCall(call)}
+                        className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
+                      >
+                        {call}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="rounded-2xl border border-emerald-900 bg-emerald-950 p-4 text-white">
+              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-200">Scores</h3>
+              <div className="space-y-2">
+                {playerNames.map((player, index) => (
+                  <div key={index} className="flex items-center justify-between rounded-lg bg-emerald-900/60 px-3 py-2 text-sm">
+                    <span>
+                      {player}
+                      {game.ranks[index] ? ` · ${rankLabel(game.ranks[index], game.tied[index])}` : ''}
+                    </span>
+                    <span>
+                      {formatScore(game.totals[index])} pts
+                      {game.callsRevealed && game.calls[index] !== null && (
+                        <span className="ml-2 text-emerald-300">
+                          call {game.calls[index]} · won {game.wonThisRound[index]}
+                        </span>
+                      )}
+                      {game.gameComplete && (
+                        <span className={`ml-2 ${game.money[index] >= 0 ? 'text-emerald-300' : 'text-red-300'}`}>
+                          {formatMoney(game.money[index])}
+                        </span>
+                      )}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {game.phase === 'playing' && (
+              <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <h3 className="mb-3 font-semibold text-slate-800">Your hand</h3>
+                <div className="flex flex-wrap gap-2">
+                  {game.hand.map((card) => (
+                    <CardButton
+                      key={card.id}
+                      card={card}
+                      disabled={game.currentTurn !== mySeat}
+                      onPlay={playCard}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {game.gameComplete && (
+              <div className="rounded-2xl border-2 border-amber-400 bg-amber-100 p-5 text-center">
+                <h3 className="text-lg font-bold text-amber-950">Game Over</h3>
+                <p className="mt-2 text-amber-900">Final standings are shown above. Tied payouts are averaged.</p>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
