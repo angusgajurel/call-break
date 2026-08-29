@@ -6,6 +6,7 @@ import {
   rankLabel,
 } from '../lib/scoring.js'
 import { createGameSocket } from './socket.js'
+import { clearSession, getOrCreatePlayerKey, loadSession, saveSession } from './session.js'
 import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
 
 function cardLabel(card) {
@@ -94,10 +95,12 @@ function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick })
 }
 
 export default function OnlineApp({ onBack }) {
+  const savedSession = loadSession()
   const [socket] = useState(() => createGameSocket())
-  const [screen, setScreen] = useState('menu')
-  const [name, setName] = useState('')
-  const [roomCode, setRoomCode] = useState('')
+  const [screen, setScreen] = useState(savedSession?.roomCode ? 'reconnecting' : 'menu')
+  const [name, setName] = useState(savedSession?.name ?? '')
+  const [roomCode, setRoomCode] = useState(savedSession?.roomCode ?? '')
+  const [playerKey] = useState(() => savedSession?.playerKey ?? getOrCreatePlayerKey())
   const [error, setError] = useState('')
   const [room, setRoom] = useState(null)
   const [game, setGame] = useState(null)
@@ -105,15 +108,29 @@ export default function OnlineApp({ onBack }) {
   const [payouts, setPayouts] = useState(DEFAULT_PAYOUTS)
   const [connected, setConnected] = useState(false)
   const [connecting, setConnecting] = useState(true)
+  const [reconnecting, setReconnecting] = useState(Boolean(savedSession?.roomCode))
 
   const inRoom = Boolean(room?.code)
   const { micOn, voiceError, remoteStreams, toggleMic } = useVoiceChat(socket, room?.code, inRoom)
 
   useEffect(() => {
+    const tryRejoin = () => {
+      const session = loadSession()
+      if (!session?.roomCode || !session?.playerKey) return
+      setReconnecting(true)
+      setScreen('reconnecting')
+      socket.emit('rejoin-room', {
+        code: session.roomCode,
+        name: session.name,
+        playerKey: session.playerKey,
+      })
+    }
+
     const onConnect = () => {
       setConnected(true)
       setConnecting(false)
       setError('')
+      tryRejoin()
     }
 
     const onDisconnect = () => {
@@ -124,9 +141,15 @@ export default function OnlineApp({ onBack }) {
     const onConnectError = () => {
       setConnected(false)
       setConnecting(false)
-      setError(
-        'Cannot reach the game server. Use the full app URL (npm start), not the static-only link.',
-      )
+      setReconnecting(false)
+      if (loadSession()?.roomCode) {
+        setScreen('reconnecting')
+        setError('Lost connection. Reconnecting when server is back…')
+      } else {
+        setError(
+          'Cannot reach the game server. Use the full app URL (npm start), not the static-only link.',
+        )
+      }
     }
 
     socket.on('connect', onConnect)
@@ -138,10 +161,41 @@ export default function OnlineApp({ onBack }) {
       setGame(payload.game)
       setYou(payload.you)
       setError('')
-      if (payload.room) setScreen('room')
+      setReconnecting(false)
+      if (payload.room) {
+        setScreen('room')
+        const myPlayer = payload.room.players.find((p) => p.playerKey === payload.you?.playerKey)
+        saveSession({
+          name: myPlayer?.name || loadSession()?.name || '',
+          roomCode: payload.room.code,
+          playerKey: payload.you?.playerKey || loadSession()?.playerKey || getOrCreatePlayerKey(),
+        })
+      }
     })
 
-    socket.on('error-msg', (message) => setError(message))
+    socket.on('error-msg', (message) => {
+      setReconnecting(false)
+      setError(message)
+    })
+
+    socket.on('session-expired', (message) => {
+      clearSession()
+      setReconnecting(false)
+      setRoom(null)
+      setGame(null)
+      setYou(null)
+      setScreen('menu')
+      setError(message || 'Session ended. Please join again.')
+    })
+
+    socket.on('left-room', () => {
+      clearSession()
+      setReconnecting(false)
+      setRoom(null)
+      setGame(null)
+      setYou(null)
+      setScreen('menu')
+    })
 
     socket.connect()
 
@@ -154,7 +208,7 @@ export default function OnlineApp({ onBack }) {
   }, [socket])
 
   const players = room?.players ?? []
-  const isHost = room && you && room.hostId === you.id
+  const isHost = room && you && room.hostPlayerKey === you.playerKey
   const mySeat = you?.seat ?? 0
 
   const playerNames = useMemo(() => {
@@ -185,7 +239,8 @@ export default function OnlineApp({ onBack }) {
     }
     if (!requireConnection()) return
     setError('')
-    socket.emit('create-room', { name: name.trim(), payouts })
+    saveSession({ name: name.trim(), roomCode: '', playerKey })
+    socket.emit('create-room', { name: name.trim(), payouts, playerKey })
   }
 
   const joinRoom = () => {
@@ -195,16 +250,21 @@ export default function OnlineApp({ onBack }) {
     }
     if (!requireConnection()) return
     setError('')
-    socket.emit('join-room', { code: roomCode.trim().toUpperCase(), name: name.trim() })
+    const code = roomCode.trim().toUpperCase()
+    saveSession({ name: name.trim(), roomCode: code, playerKey })
+    socket.emit('join-room', { code, name: name.trim(), playerKey })
   }
 
   const startGame = () => socket.emit('start-game')
   const submitCall = (call) => socket.emit('submit-call', { call })
   const playCard = (cardId) => socket.emit('play-card', { cardId })
   const leaveRoom = () => {
-    socket.emit('leave-room')
+    socket.emit('leave-room', { playerKey })
+    clearSession()
     setRoom(null)
     setGame(null)
+    setYou(null)
+    setReconnecting(false)
     setScreen('menu')
   }
 
@@ -234,6 +294,48 @@ export default function OnlineApp({ onBack }) {
       )}
     </div>
   )
+
+  if (screen === 'reconnecting') {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8">
+        <div className="mx-auto w-full max-w-lg space-y-4">
+          <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl text-center">
+            <h1 className="text-2xl font-bold text-emerald-900">Reconnecting…</h1>
+            <p className="mt-3 text-sm text-slate-600">
+              Restoring your session
+              {roomCode ? (
+                <>
+                  {' '}
+                  in room <span className="font-mono font-bold">{roomCode}</span>
+                </>
+              ) : null}
+              {name ? (
+                <>
+                  {' '}
+                  as <strong>{name}</strong>
+                </>
+              ) : null}
+              .
+            </p>
+            {connectionBanner}
+            {error && <p className="mt-4 text-sm text-red-600">{error}</p>}
+            {!reconnecting && (
+              <button
+                type="button"
+                onClick={() => {
+                  setScreen('menu')
+                  setError('')
+                }}
+                className="mt-6 rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
+              >
+                Back to menu
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    )
+  }
 
   if (screen === 'menu') {
     return (
@@ -391,7 +493,7 @@ export default function OnlineApp({ onBack }) {
                   <span>{player.name}</span>
                   <span className="text-xs text-slate-500">
                     Seat {player.seat + 1}
-                    {player.id === room.hostId ? ' · Host' : ''}
+                    {player.playerKey === room.hostPlayerKey ? ' · Host' : ''}
                     {!player.connected ? ' · Offline' : ''}
                   </span>
                 </li>

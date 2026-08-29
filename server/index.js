@@ -42,15 +42,39 @@ function getRoom(code) {
 function sanitizeRoom(room) {
   return {
     code: room.code,
-    hostId: room.hostId,
+    hostPlayerKey: room.hostPlayerKey,
     status: room.status,
     players: room.players.map((player) => ({
       id: player.id,
+      playerKey: player.playerKey,
       name: player.name,
       seat: player.seat,
       connected: player.connected,
     })),
     payouts: room.game?.payouts ?? room.pendingPayouts ?? null,
+  }
+}
+
+function findPlayerBySocket(room, socketId) {
+  return room.players.find((player) => player.id === socketId)
+}
+
+function findPlayerByKey(room, playerKey) {
+  return room.players.find((player) => player.playerKey === playerKey)
+}
+
+function attachSocketToPlayer(room, player, socket) {
+  player.id = socket.id
+  player.connected = true
+  socket.join(room.code)
+}
+
+function removePlayerFromRoom(room, playerKey) {
+  const index = room.players.findIndex((player) => player.playerKey === playerKey)
+  if (index === -1) return
+  room.players.splice(index, 1)
+  if (room.hostPlayerKey === playerKey) {
+    room.hostPlayerKey = room.players[0]?.playerKey ?? null
   }
 }
 
@@ -71,7 +95,7 @@ function broadcastRoom(room) {
         room.status === 'playing' || room.status === 'finished'
           ? getPublicGameState(room.game, player.seat)
           : null,
-      you: { seat: player.seat, id: player.id },
+      you: { seat: player.seat, id: player.id, playerKey: player.playerKey },
     }
     io.to(player.id).emit('state', payload)
   })
@@ -103,15 +127,24 @@ const io = new Server(httpServer, {
 io.on('connection', (socket) => {
   let joinedCode = null
 
-  socket.on('create-room', ({ name, payouts }) => {
+  socket.on('create-room', ({ name, payouts, playerKey }) => {
     let code = createRoomCode()
     while (rooms.has(code)) code = createRoomCode()
 
+    const key = playerKey || socket.id
     const room = {
       code,
-      hostId: socket.id,
+      hostPlayerKey: key,
       status: 'lobby',
-      players: [{ id: socket.id, name: name?.trim() || 'Host', seat: 0, connected: true }],
+      players: [
+        {
+          id: socket.id,
+          playerKey: key,
+          name: name?.trim() || 'Host',
+          seat: 0,
+          connected: true,
+        },
+      ],
       game: null,
     }
 
@@ -122,12 +155,23 @@ io.on('connection', (socket) => {
     broadcastRoom(room)
   })
 
-  socket.on('join-room', ({ code, name }) => {
+  socket.on('join-room', ({ code, name, playerKey }) => {
     const room = getRoom(code)
     if (!room) {
       socket.emit('error-msg', 'Room not found')
       return
     }
+
+    const key = playerKey || socket.id
+    const existing = findPlayerByKey(room, key)
+    if (existing) {
+      if (name?.trim()) existing.name = name.trim()
+      attachSocketToPlayer(room, existing, socket)
+      joinedCode = room.code
+      broadcastRoom(room)
+      return
+    }
+
     if (room.status !== 'lobby') {
       socket.emit('error-msg', 'Game already started')
       return
@@ -137,23 +181,66 @@ io.on('connection', (socket) => {
       return
     }
 
-    const existing = room.players.find((player) => player.id === socket.id)
-    if (existing) {
-      existing.connected = true
-      existing.name = name?.trim() || existing.name
-    } else {
-      const seat = assignSeat(room)
-      if (seat === null) {
-        socket.emit('error-msg', 'Room is full')
-        return
-      }
-      room.players.push({
-        id: socket.id,
-        name: name?.trim() || `Player ${seat + 1}`,
-        seat,
-        connected: true,
-      })
+    const seat = assignSeat(room)
+    if (seat === null) {
+      socket.emit('error-msg', 'Room is full')
+      return
     }
+    room.players.push({
+      id: socket.id,
+      playerKey: key,
+      name: name?.trim() || `Player ${seat + 1}`,
+      seat,
+      connected: true,
+    })
+
+    joinedCode = room.code
+    socket.join(room.code)
+    broadcastRoom(room)
+  })
+
+  socket.on('rejoin-room', ({ code, name, playerKey }) => {
+    if (!code || !playerKey) {
+      socket.emit('session-expired', 'Missing session')
+      return
+    }
+
+    const room = getRoom(code)
+    if (!room) {
+      socket.emit('session-expired', 'Room no longer exists')
+      return
+    }
+
+    const existing = findPlayerByKey(room, playerKey)
+    if (existing) {
+      if (name?.trim()) existing.name = name.trim()
+      attachSocketToPlayer(room, existing, socket)
+      joinedCode = room.code
+      broadcastRoom(room)
+      return
+    }
+
+    if (room.status !== 'lobby') {
+      socket.emit('session-expired', 'You were removed from this game')
+      return
+    }
+    if (room.players.length >= 4) {
+      socket.emit('error-msg', 'Room is full')
+      return
+    }
+
+    const seat = assignSeat(room)
+    if (seat === null) {
+      socket.emit('error-msg', 'Room is full')
+      return
+    }
+    room.players.push({
+      id: socket.id,
+      playerKey,
+      name: name?.trim() || `Player ${seat + 1}`,
+      seat,
+      connected: true,
+    })
 
     joinedCode = room.code
     socket.join(room.code)
@@ -163,7 +250,8 @@ io.on('connection', (socket) => {
   socket.on('start-game', () => {
     const room = getRoom(joinedCode)
     if (!room) return
-    if (room.hostId !== socket.id) {
+    const me = findPlayerBySocket(room, socket.id)
+    if (!me || room.hostPlayerKey !== me.playerKey) {
       socket.emit('error-msg', 'Only the host can start')
       return
     }
@@ -181,7 +269,7 @@ io.on('connection', (socket) => {
   socket.on('submit-call', ({ call }) => {
     const room = getRoom(joinedCode)
     if (!room?.game) return
-    const player = room.players.find((p) => p.id === socket.id)
+    const player = findPlayerBySocket(room, socket.id)
     if (!player) return
 
     const result = submitCall(room.game, player.seat, Number(call))
@@ -195,7 +283,7 @@ io.on('connection', (socket) => {
   socket.on('play-card', ({ cardId }) => {
     const room = getRoom(joinedCode)
     if (!room?.game) return
-    const player = room.players.find((p) => p.id === socket.id)
+    const player = findPlayerBySocket(room, socket.id)
     if (!player) return
 
     const result = playCard(room.game, player.seat, cardId)
@@ -208,15 +296,21 @@ io.on('connection', (socket) => {
     broadcastRoom(room)
   })
 
-  socket.on('leave-room', () => {
+  socket.on('leave-room', ({ playerKey } = {}) => {
     const room = getRoom(joinedCode)
     if (!room) return
     notifyVoicePeerLeft(room, socket.id)
-    const player = room.players.find((p) => p.id === socket.id)
-    if (player) player.connected = false
+    const me = findPlayerBySocket(room, socket.id)
+    const key = playerKey || me?.playerKey
+    if (key) removePlayerFromRoom(room, key)
     socket.leave(room.code)
     joinedCode = null
-    broadcastRoom(room)
+    if (room.players.length === 0) {
+      rooms.delete(room.code)
+    } else {
+      broadcastRoom(room)
+    }
+    socket.emit('left-room')
   })
 
   socket.on('voice-ready', ({ roomCode }) => {
@@ -243,9 +337,10 @@ io.on('connection', (socket) => {
     const room = getRoom(joinedCode)
     if (!room) return
     notifyVoicePeerLeft(room, socket.id)
-    const player = room.players.find((p) => p.id === socket.id)
+    const player = findPlayerBySocket(room, socket.id)
     if (player) player.connected = false
     broadcastRoom(room)
+    joinedCode = null
   })
 })
 
