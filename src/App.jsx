@@ -66,38 +66,64 @@ function calculateRankings(totals) {
     .sort((a, b) => b.total - a.total || a.index - b.index)
 }
 
+function getPayoutForRank(rank, payouts) {
+  const loserPayouts = [payouts.second, payouts.third, payouts.fourth]
+  const winnerCollects = loserPayouts.reduce((sum, value) => sum + value, 0)
+  if (rank === 1) return winnerCollects
+  if (rank >= 2 && rank <= 4) return -loserPayouts[rank - 2]
+  return 0
+}
+
 function calculatePositionMoney(totals, payouts, gameComplete) {
   if (!gameComplete) {
     return {
       money: Array(PLAYERS).fill(null),
       ranks: Array(PLAYERS).fill(null),
+      tied: Array(PLAYERS).fill(false),
     }
   }
 
   const ranked = calculateRankings(totals)
   const money = Array(PLAYERS).fill(0)
   const ranks = Array(PLAYERS).fill(null)
-  const loserPayouts = [payouts.second, payouts.third, payouts.fourth]
-  const winnerCollects = loserPayouts.reduce((sum, value) => sum + value, 0)
+  const tied = Array(PLAYERS).fill(false)
 
-  ranked.forEach((player, rank) => {
-    ranks[player.index] = rank + 1
-    if (rank === 0) {
-      money[player.index] = winnerCollects
-    } else {
-      money[player.index] = -loserPayouts[rank - 1]
+  let i = 0
+  while (i < ranked.length) {
+    let j = i + 1
+    while (j < ranked.length && ranked[j].total === ranked[i].total) {
+      j += 1
     }
-  })
 
-  return { money, ranks }
+    const groupSize = j - i
+    const rankStart = i + 1
+    const rankEnd = j
+
+    let payoutSum = 0
+    for (let rank = rankStart; rank <= rankEnd; rank += 1) {
+      payoutSum += getPayoutForRank(rank, payouts)
+    }
+    const avgPayout = payoutSum / groupSize
+
+    for (let k = i; k < j; k += 1) {
+      ranks[ranked[k].index] = rankStart
+      money[ranked[k].index] = avgPayout
+      tied[ranked[k].index] = groupSize > 1
+    }
+
+    i = j
+  }
+
+  return { money, ranks, tied }
 }
 
-function buildHistoryEntry(players, totals, ranks, moneyTotals, payouts) {
-  const results = calculateRankings(totals).map((entry, rank) => ({
+function buildHistoryEntry(players, totals, ranks, moneyTotals, payouts, tied) {
+  const results = calculateRankings(totals).map((entry) => ({
     name: players[entry.index],
-    rank: rank + 1,
+    rank: ranks[entry.index],
     points: entry.total,
     money: moneyTotals[entry.index],
+    tied: tied[entry.index],
   }))
 
   return {
@@ -105,7 +131,6 @@ function buildHistoryEntry(players, totals, ranks, moneyTotals, payouts) {
     date: new Date().toISOString(),
     payouts: { ...payouts },
     results,
-    ranks,
   }
 }
 
@@ -122,11 +147,11 @@ function saveHistory(history) {
   localStorage.setItem(HISTORY_KEY, JSON.stringify(history))
 }
 
-function rankLabel(rank) {
-  if (rank === 1) return '1st'
-  if (rank === 2) return '2nd'
-  if (rank === 3) return '3rd'
-  if (rank === 4) return '4th'
+function rankLabel(rank, isTied = false) {
+  if (rank === 1) return isTied ? '1st (tie)' : '1st'
+  if (rank === 2) return isTied ? '2nd (tie)' : '2nd'
+  if (rank === 3) return isTied ? '3rd (tie)' : '3rd'
+  if (rank === 4) return isTied ? '4th (tie)' : '4th'
   return null
 }
 
@@ -216,7 +241,9 @@ function GameHistory({ history, onClear }) {
                 >
                   <div className="min-w-0">
                     <span className="font-medium text-slate-800">{result.name}</span>
-                    <span className="ml-2 text-xs text-slate-500">{rankLabel(result.rank)}</span>
+                    <span className="ml-2 text-xs text-slate-500">
+                      {rankLabel(result.rank, result.tied)}
+                    </span>
                   </div>
                   <div className="shrink-0 text-right">
                     <span className="text-slate-600">{formatScore(result.points)} pts</span>
@@ -392,21 +419,23 @@ export default function App() {
     if (!gameComplete) setGameArchived(false)
   }, [gameComplete])
 
-  const { money: moneyTotals, ranks } = useMemo(
+  const { money: moneyTotals, ranks, tied } = useMemo(
     () => calculatePositionMoney(totals, payouts, gameComplete),
     [totals, payouts, gameComplete],
   )
 
-  const winnerIndex = useMemo(() => {
-    if (!gameComplete) return null
-    return calculateRankings(totals)[0].index
+  const winners = useMemo(() => {
+    if (!gameComplete) return []
+    const ranked = calculateRankings(totals)
+    const topScore = ranked[0].total
+    return ranked.filter((player) => player.total === topScore)
   }, [gameComplete, totals])
 
   const winnerCollects = payouts.second + payouts.third + payouts.fourth
 
   const archiveCurrentGame = () => {
     if (!gameComplete || gameArchived) return
-    const entry = buildHistoryEntry(players, totals, ranks, moneyTotals, payouts)
+    const entry = buildHistoryEntry(players, totals, ranks, moneyTotals, payouts, tied)
     setHistory((prev) => [entry, ...prev])
     setGameArchived(true)
   }
@@ -506,17 +535,25 @@ export default function App() {
       </div>
 
       <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-6">
-        {gameComplete && winnerIndex !== null && (
+        {gameComplete && winners.length > 0 && (
           <div className="mb-4 rounded-2xl border-2 border-amber-400 bg-amber-100 px-4 py-4 text-center shadow-lg sm:mb-6 sm:px-6 sm:py-5">
             <p className="text-xs font-semibold uppercase tracking-widest text-amber-800 sm:text-sm">
-              Winner
+              {winners.length > 1 ? 'Winners (tie)' : 'Winner'}
             </p>
             <p className="mt-1 text-2xl font-bold text-amber-950 sm:text-3xl">
-              {players[winnerIndex]}
+              {winners.map((winner) => players[winner.index]).join(' & ')}
             </p>
             <p className="mt-1 text-base text-amber-900 sm:text-lg">
-              {formatScore(totals[winnerIndex])} pts · collects {formatMoney(winnerCollects)}
+              {formatScore(winners[0].total)} pts
+              {winners.length === 1 && (
+                <> · {formatMoney(moneyTotals[winners[0].index])}</>
+              )}
             </p>
+            {winners.length > 1 && (
+              <p className="mt-1 text-sm text-amber-800">
+                Each: {formatMoney(moneyTotals[winners[0].index])}
+              </p>
+            )}
           </div>
         )}
 
@@ -589,7 +626,9 @@ export default function App() {
                   <div>
                     <span className="font-medium">{player}</span>
                     {ranks[index] && (
-                      <span className="ml-2 text-xs text-emerald-300">{rankLabel(ranks[index])}</span>
+                      <span className="ml-2 text-xs text-emerald-300">
+                        {rankLabel(ranks[index], tied[index])}
+                      </span>
                     )}
                   </div>
                   <div className="text-right">
@@ -680,7 +719,7 @@ export default function App() {
                     <td key={index} className="px-3 py-4 text-center">
                       {ranks[index] && (
                         <div className="mb-1 text-xs font-medium text-emerald-300">
-                          {rankLabel(ranks[index])}
+                          {rankLabel(ranks[index], tied[index])}
                         </div>
                       )}
                       <div className="text-lg font-bold">{formatScore(total)} pts</div>
@@ -715,7 +754,8 @@ export default function App() {
                 <li>The sum of Won hands in each round must equal 13.</li>
                 <li>
                   After all rounds: 1st collects {winnerCollects}, 2nd pays {payouts.second}, 3rd pays{' '}
-                  {payouts.third}, 4th pays {payouts.fourth}.
+                  {payouts.third}, 4th pays {payouts.fourth}. Tied players split the combined payout
+                  for the positions they share.
                 </li>
               </ul>
             </section>
