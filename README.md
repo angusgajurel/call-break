@@ -1,6 +1,6 @@
-# Nepali Call Break Scorekeeper
+# Call Break Scorekeeper
 
-Interactive 5-round scorekeeper for a 4-player Nepali Call Break card game.
+Interactive 5-round scorekeeper for a 4-player Call Break card game.
 
 ## Live app
 

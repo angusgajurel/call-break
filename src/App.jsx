@@ -159,7 +159,7 @@ function SetupScreen({ players, payouts, onPlayersChange, onPayoutChange, onStar
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-4 py-8">
       <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-xl sm:p-8">
         <header className="mb-6 text-center">
-          <h1 className="text-2xl font-bold text-emerald-900 sm:text-3xl">Nepali Call Break</h1>
+          <h1 className="text-2xl font-bold text-emerald-900 sm:text-3xl">Call Break</h1>
           <p className="mt-2 text-sm text-slate-600">Set up players and payouts before starting</p>
         </header>
 
@@ -361,7 +361,7 @@ export default function App() {
       <div className="mx-auto max-w-6xl px-3 py-4 sm:px-4 sm:py-8">
         <header className="mb-4 text-center sm:mb-8">
           <h1 className="text-2xl font-bold tracking-tight text-emerald-900 sm:text-4xl">
-            Nepali Call Break
+            Call Break
           </h1>
           <p className="mt-1 text-sm text-slate-600 sm:mt-2 sm:text-base">
             5 rounds · 2nd pays {payouts.second} · 3rd pays {payouts.third} · 4th pays {payouts.fourth}
