@@ -10,7 +10,7 @@ Scorekeeper and online multiplayer for a 4-player Call Break card game.
 - **Talk** button — voice chat in the room
 - **Scorekeeper** — manual scoring at the table
 
-> This link is served via a free Cloudflare tunnel. If it stops working, run `npm start` locally or deploy to Render (see below).
+> **Note:** The Cloudflare tunnel link is temporary and can go down when the server restarts. For a **permanent** link, deploy to Render (free, ~5 minutes) — see below.
 
 ## Scorekeeper only (static backup)
 
@@ -36,12 +36,17 @@ npm start
 
 Open http://localhost:3001
 
-## Permanent free deploy (Render)
+## Permanent free deploy (Render) — recommended
 
-1. Push this repo to GitHub
-2. Sign up at https://render.com (free, no credit card)
-3. New → Blueprint → connect repo → uses `render.yaml`
-4. Your app will be at `https://call-break.onrender.com` (or similar)
+This gives you a stable `https://call-break-xxxx.onrender.com` URL that stays up.
+
+1. Push this project to a **GitHub** repo (create one at github.com/new)
+2. Sign up at **https://render.com** (free, no credit card)
+3. Click **New +** → **Blueprint** → connect your GitHub repo
+4. Render reads `render.yaml` automatically and deploys
+5. Share your `onrender.com` URL with friends
+
+First load after idle may take ~30 seconds (Render free tier wakes up). Online play and voice chat work on the full deploy.
 
 ## Play Online
 
