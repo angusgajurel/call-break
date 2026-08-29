@@ -29,9 +29,12 @@ export default function App() {
           >
             <div className="font-semibold">Play Online</div>
             <div className="mt-1 text-sm text-emerald-100">
-              Create a room, invite friends, and play a full game together
+              Create a room, invite friends, play cards, and talk live
             </div>
           </button>
+          <p className="text-center text-xs text-slate-500">
+            Online play requires the full server (npm start), not the static-only link.
+          </p>
 
           <button
             type="button"
