@@ -64,7 +64,8 @@ export function getLegalCards(hand, trick, options = {}) {
     if (trumpsInTrick.length > 0) {
       const highTrumpRank = Math.max(...trumpsInTrick.map((play) => play.card.r))
       const beaters = spadeCards.filter((card) => card.r > highTrumpRank)
-      return beaters.length > 0 ? beaters : spadeCards
+      if (beaters.length > 0) return beaters
+      return [...hand]
     }
     return spadeCards
   }
@@ -104,7 +105,7 @@ export function playHint(hand, trick, options = {}) {
       if (spadeCards.some((card) => card.r > highTrumpRank)) {
         return 'Must play a higher spade than any spade already in the trick.'
       }
-      return 'Must play a spade (trump).'
+      return 'Cannot beat the trick — play any card.'
     }
     return 'Must trump with a spade.'
   }
