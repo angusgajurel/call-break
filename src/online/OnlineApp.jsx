@@ -9,7 +9,7 @@ import { createGameSocket } from './socket.js'
 import { canPlayCard } from '../lib/playRules.js'
 import { clearSession, getOrCreatePlayerKey, loadSession, saveSession } from './session.js'
 import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
-import { FlyingCardOverlay, PlayingCardFace, shouldReduceMotion } from './CardFlyAnimation.jsx'
+import { FlyingCardOverlay, getTrickLandingRect, PlayingCardFace, shouldReduceMotion } from './CardFlyAnimation.jsx'
 
 function cardLabel(card) {
   const rankMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
@@ -30,11 +30,11 @@ function CardButton({ card, onPlay, disabled, vertical = false, hidden = false }
         type="button"
         disabled={disabled}
         onClick={(event) => onPlay(card.id, event.currentTarget)}
-        className={`h-[3.65rem] w-full transition disabled:cursor-not-allowed disabled:opacity-40 ${
+        className={`h-[2.7rem] w-full transition disabled:cursor-not-allowed disabled:opacity-40 ${
           hidden ? 'pointer-events-none opacity-0' : ''
         }`}
       >
-        <PlayingCardFace card={card} />
+        <PlayingCardFace card={card} className="playing-card--compact" />
       </button>
     )
   }
@@ -167,7 +167,7 @@ function HandDisplay({
             </p>
           )}
         </div>
-        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+        <div className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto">
           {hand.map((card) =>
             phase === 'playing' ? (
               <CardButton
@@ -458,7 +458,7 @@ export default function OnlineApp({ onBack }) {
     }
 
     const from = sourceElement.getBoundingClientRect()
-    const to = dropTarget.getBoundingClientRect()
+    const to = getTrickLandingRect(dropTarget, game.currentTrick?.cards?.length ?? 0)
     pendingPlayRef.current = cardId
     setPendingCardId(cardId)
     setFlyingCard({ card, from, to })
@@ -956,7 +956,7 @@ export default function OnlineApp({ onBack }) {
               </div>
 
               {game.hand?.length > 0 && (
-                <div className="w-[4.5rem] shrink-0 sm:w-24 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:min-h-[20rem]">
+                <div className="w-[3.35rem] shrink-0 sm:w-[3.75rem] lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:min-h-[16rem]">
                   <HandDisplay
                     hand={game.hand}
                     phase={game.phase}
