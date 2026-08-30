@@ -91,51 +91,18 @@ function CurrentTrickPanel({ trick, playerNames, mySeat }) {
 function LastTrickPanel({ trick, playerNames, mySeat, trickNumber }) {
   if (!trick?.cards?.length || trick.winner === undefined || trick.winner === null) return null
 
-  const winnerPlay = trick.cards.find((play) => play.seat === trick.winner)
-  const winnerName = playerNames[trick.winner]
   const leadSuit = trick.cards[0]?.card.s
 
   return (
     <section className="overflow-hidden rounded-2xl border border-emerald-900/20 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950 text-white shadow-lg">
       <div className="border-b border-white/10 px-4 py-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300/90">
-              Last trick
-            </p>
-            <p className="text-sm text-emerald-100/80">
-              Trick {trickNumber} of 13
-              {leadSuit ? ` · led ${suitLabel(leadSuit)}` : ''}
-            </p>
-          </div>
-        </div>
-      </div>
-
-      <div className="border-b border-white/10 bg-amber-400/10 px-4 py-4">
-        <div className="flex flex-wrap items-center justify-center gap-3 text-center sm:justify-start sm:text-left">
-          <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-amber-400 text-lg font-bold text-amber-950">
-            ★
-          </div>
-          <div>
-            <p className="text-lg font-bold text-white sm:text-xl">
-              {winnerName}
-              {trick.winner === mySeat ? (
-                <span className="ml-1 text-sm font-medium text-emerald-300">(you)</span>
-              ) : null}{' '}
-              won with
-            </p>
-            {winnerPlay && (
-              <p className={`mt-1 text-3xl font-bold sm:text-4xl ${suitColor(winnerPlay.card.s, true)}`}>
-                {cardLabel(winnerPlay.card)}
-              </p>
-            )}
-          </div>
-          {winnerPlay && (
-            <div className="hidden sm:block">
-              <PlayingCard card={winnerPlay.card} large winning />
-            </div>
-          )}
-        </div>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300/90">
+          Last trick
+        </p>
+        <p className="text-sm text-emerald-100/80">
+          Trick {trickNumber} of 13
+          {leadSuit ? ` · led ${suitLabel(leadSuit)}` : ''}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
