@@ -12,6 +12,7 @@ import {
   startRound,
   submitCall,
 } from './gameLogic.js'
+import { fillEmptySeatsWithBots, runBots, stopBots } from './bots.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT) || 3001
@@ -55,6 +56,7 @@ function sanitizeRoom(room) {
       name: player.name,
       seat: player.seat,
       connected: player.connected,
+      isBot: Boolean(player.isBot),
     })),
     payouts: room.game?.payouts ?? room.pendingPayouts ?? null,
   }
@@ -126,9 +128,9 @@ function assignSeat(room) {
   return null
 }
 
-function broadcastRoom(room) {
+function emitRoomState(room) {
   room.players.forEach((player) => {
-    if (!player.connected) return
+    if (player.isBot || !player.connected) return
     const payload = {
       room: sanitizeRoom(room),
       game:
@@ -139,7 +141,21 @@ function broadcastRoom(room) {
     }
     io.to(player.id).emit('state', payload)
   })
+}
+
+function queueBotTurn(room) {
+  runBots(room, () => {
+    if (room.game?.phase === 'finished') room.status = 'finished'
+    emitRoomState(room)
+    broadcastRoomList()
+    queueBotTurn(room)
+  })
+}
+
+function broadcastRoom(room) {
+  emitRoomState(room)
   broadcastRoomList()
+  queueBotTurn(room)
 }
 
 function notifyVoicePeerLeft(room, peerId) {
@@ -302,11 +318,12 @@ io.on('connection', (socket) => {
       socket.emit('error-msg', 'Only the host can start')
       return
     }
-    if (room.players.length !== 4) {
-      socket.emit('error-msg', 'Need exactly 4 players')
+    if (room.players.length < 1) {
+      socket.emit('error-msg', 'Need at least 1 player')
       return
     }
 
+    fillEmptySeatsWithBots(room)
     room.game = createGameState(room.pendingPayouts)
     room.status = 'playing'
     startRound(room.game)
@@ -353,6 +370,7 @@ io.on('connection', (socket) => {
     socket.leave(room.code)
     joinedCode = null
     if (room.players.length === 0) {
+      stopBots(room.code)
       rooms.delete(room.code)
       broadcastRoomList()
     } else {

@@ -5,10 +5,16 @@ import {
   calculatePositionMoney,
   calculateRoundScore,
 } from '../shared/scoring.js'
+import { TRUMP, canPlayCard, getLegalCards, trickWinner } from '../shared/playRules.js'
 
 const SUITS = ['C', 'D', 'H', 'S']
-const TRUMP = 'S'
 const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
+
+export { TRUMP, canPlayCard, getLegalCards, trickWinner }
+
+export function nextSeatCCW(seat) {
+  return (seat - 1 + PLAYERS) % PLAYERS
+}
 
 export function createDeck() {
   const deck = []
@@ -38,24 +44,6 @@ export function dealHands(deck) {
     hand.sort((a, b) => a.s.localeCompare(b.s) || a.r - b.r)
   }
   return hands
-}
-
-export function canPlayCard(hand, card, trick) {
-  if (trick.cards.length === 0) return hand.some((c) => c.id === card.id)
-  const leadSuit = trick.cards[0].card.s
-  const hasLeadSuit = hand.some((c) => c.s === leadSuit)
-  if (hasLeadSuit) return card.s === leadSuit
-  return true
-}
-
-export function trickWinner(trick) {
-  const trumpCards = trick.cards.filter((play) => play.card.s === TRUMP)
-  if (trumpCards.length > 0) {
-    return trumpCards.reduce((best, play) => (play.card.r > best.card.r ? play : best)).seat
-  }
-  const leadSuit = trick.cards[0].card.s
-  const suited = trick.cards.filter((play) => play.card.s === leadSuit)
-  return suited.reduce((best, play) => (play.card.r > best.card.r ? play : best)).seat
 }
 
 export function createRoomCode() {
@@ -91,7 +79,7 @@ export function startRound(game) {
   game.calls = Array(PLAYERS).fill(null)
   game.wonThisRound = Array(PLAYERS).fill(0)
   game.currentTrick = { cards: [] }
-  game.trickLeader = (game.dealer + 1) % PLAYERS
+  game.trickLeader = nextSeatCCW(game.dealer)
   game.currentTurn = game.trickLeader
   game.completedTricks = 0
   game.phase = 'bidding'
@@ -123,7 +111,7 @@ export function playCard(game, seat, cardId) {
   const hand = game.hands[seat]
   const card = hand.find((c) => c.id === cardId)
   if (!card) return { error: 'Card not in hand' }
-  if (!canPlayCard(hand, card, game.currentTrick)) return { error: 'Must follow suit' }
+  if (!canPlayCard(hand, card, game.currentTrick)) return { error: 'Illegal card for this trick' }
 
   hand.splice(hand.indexOf(card), 1)
   game.currentTrick.cards.push({ seat, card })
@@ -141,7 +129,7 @@ export function playCard(game, seat, cardId) {
       finishRound(game)
     }
   } else {
-    game.currentTurn = (game.currentTurn + 1) % PLAYERS
+    game.currentTurn = nextSeatCCW(game.currentTurn)
   }
 
   return { ok: true }
@@ -159,7 +147,7 @@ function finishRound(game) {
   }
 
   game.round += 1
-  game.dealer = (game.dealer + 1) % PLAYERS
+  game.dealer = nextSeatCCW(game.dealer)
   startRound(game)
 }
 
@@ -171,7 +159,7 @@ export function getPublicGameState(game, seat) {
     round: game.round,
     dealer: game.dealer,
     phase: game.phase,
-    calls: game.calls.map((call, index) => (call !== null ? call : null)),
+    calls: game.calls.map((call) => (call !== null ? call : null)),
     callsRevealed: game.phase !== 'bidding',
     wonThisRound: [...game.wonThisRound],
     totals: [...game.totals],
@@ -186,6 +174,7 @@ export function getPublicGameState(game, seat) {
     ranks,
     tied,
     gameComplete,
+    playDirection: 'ccw',
   }
 }
 

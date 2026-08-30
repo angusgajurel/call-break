@@ -6,6 +6,7 @@ import {
   rankLabel,
 } from '../lib/scoring.js'
 import { createGameSocket } from './socket.js'
+import { canPlayCard, playHint } from '../lib/playRules.js'
 import { clearSession, getOrCreatePlayerKey, loadSession, saveSession } from './session.js'
 import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
 
@@ -18,19 +19,6 @@ function cardLabel(card) {
 
 function suitColor(suit) {
   return suit === 'H' || suit === 'D' ? 'text-red-600' : 'text-slate-900'
-}
-
-function canPlayCard(hand, card, trick) {
-  if (!trick?.cards?.length) return true
-  const leadSuit = trick.cards[0].card.s
-  const hasLeadSuit = hand.some((c) => c.s === leadSuit)
-  if (hasLeadSuit) return card.s === leadSuit
-  return true
-}
-
-function leadSuitLabel(suit) {
-  const suitMap = { S: '♠ spades', H: '♥ hearts', D: '♦ diamonds', C: '♣ clubs' }
-  return suitMap[suit] || suit
 }
 
 function CardButton({ card, onPlay, disabled }) {
@@ -60,22 +48,14 @@ function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick })
   if (!hand?.length) return null
 
   const isMyTurn = phase === 'playing' && currentTurn === mySeat
-  const leadSuit = currentTrick?.cards?.[0]?.card?.s ?? null
-  const mustFollowSuit = isMyTurn && leadSuit && hand.some((c) => c.s === leadSuit)
+  const hint = isMyTurn ? playHint(hand, currentTrick) : null
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
       <h3 className="mb-1 font-semibold text-slate-800">
         Your hand <span className="text-sm font-normal text-slate-500">({hand.length} cards)</span>
       </h3>
-      {isMyTurn && mustFollowSuit && (
-        <p className="mb-3 text-sm text-amber-700">
-          Must follow {leadSuitLabel(leadSuit)} — other cards are disabled.
-        </p>
-      )}
-      {isMyTurn && !leadSuit && (
-        <p className="mb-3 text-sm text-emerald-700">Your lead — play any card.</p>
-      )}
+      {hint && <p className="mb-3 text-sm text-amber-700">{hint}</p>}
       <div className="flex flex-wrap gap-2">
         {hand.map((card) =>
           phase === 'playing' ? (
@@ -580,16 +560,19 @@ export default function OnlineApp({ onBack }) {
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-semibold text-slate-800">Waiting for players ({players.length}/4)</h2>
             <p className="mt-1 text-sm text-slate-500">
-              Tap <strong>Talk</strong> to enable voice chat with your friends.
+              Play is counter-clockwise. Empty seats are filled by PC players when you start.
             </p>
             <ul className="mt-3 space-y-2">
               {players.map((player) => (
                 <li key={player.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
-                  <span>{player.name}</span>
+                  <span>
+                    {player.name}
+                    {player.isBot ? ' 🤖' : ''}
+                  </span>
                   <span className="text-xs text-slate-500">
                     Seat {player.seat + 1}
                     {player.playerKey === room.hostPlayerKey ? ' · Host' : ''}
-                    {!player.connected ? ' · Offline' : ''}
+                    {player.isBot ? ' · PC' : !player.connected ? ' · Offline' : ''}
                   </span>
                 </li>
               ))}
@@ -597,11 +580,11 @@ export default function OnlineApp({ onBack }) {
             {isHost && (
               <button
                 type="button"
-                disabled={players.length !== 4}
+                disabled={players.length < 1}
                 onClick={startGame}
                 className="mt-4 w-full rounded-xl bg-emerald-700 py-3 font-semibold text-white disabled:bg-slate-300"
               >
-                Start Game
+                Start Game{players.length < 4 ? ' (PC fills empty seats)' : ''}
               </button>
             )}
             {!isHost && (
@@ -629,6 +612,7 @@ export default function OnlineApp({ onBack }) {
                 <p className="mt-2 text-sm text-slate-600">
                   Turn: <strong>{playerNames[game.currentTurn]}</strong>
                   {game.currentTurn === mySeat ? ' (you)' : ''}
+                  <span className="ml-2 text-slate-400">· counter-clockwise</span>
                 </p>
               )}
 
