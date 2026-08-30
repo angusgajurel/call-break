@@ -48,11 +48,6 @@ function CardBadge({ card, large = false, fullWidth = false }) {
   )
 }
 
-function suitLabel(suit) {
-  const labels = { S: 'Spades', H: 'Hearts', D: 'Diamonds', C: 'Clubs' }
-  return labels[suit] || suit
-}
-
 function TrickChips({ trick, playerNames, mySeat, winnerSeat }) {
   if (!trick?.cards?.length) return null
 
@@ -111,13 +106,10 @@ function CurrentTrickPanel({ trick, playerNames, mySeat, containerRef, showPlace
 function LastTrickPanel({ trick, playerNames, mySeat, trickNumber }) {
   if (!trick?.cards?.length || trick.winner === undefined || trick.winner === null) return null
 
-  const leadSuit = trick.cards[0]?.card.s
-
   return (
     <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">
         Last trick · {trickNumber}/13
-        {leadSuit ? ` · led ${suitLabel(leadSuit)}` : ''}
       </p>
       <TrickChips
         trick={trick}
