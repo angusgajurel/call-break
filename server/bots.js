@@ -1,13 +1,17 @@
 import { getLegalCards, playCard, submitCall } from './gameLogic.js'
 
-const BOT_NAMES = ['PC Anup', 'PC Dev', 'PC Sushil', 'PC Roshan']
 const botTimers = new Map()
 
-export function createBotPlayer(room, seat, botIndex) {
+function nextPcName(room) {
+  const pcCount = room.players.filter((player) => player.isBot).length
+  return `PC${pcCount + 1}`
+}
+
+export function createBotPlayer(room, seat) {
   return {
     id: `bot-${room.code}-${seat}`,
     playerKey: `bot-${room.code}-${seat}`,
-    name: BOT_NAMES[botIndex] ?? `PC ${seat + 1}`,
+    name: nextPcName(room),
     seat,
     connected: true,
     isBot: true,
@@ -16,11 +20,10 @@ export function createBotPlayer(room, seat, botIndex) {
 
 export function convertSeatToBot(room, player) {
   if (!player || player.isBot) return
-  const botIndex = player.seat % BOT_NAMES.length
   player.isBot = true
   player.id = `bot-${room.code}-${player.seat}`
   player.playerKey = `bot-${room.code}-${player.seat}`
-  player.name = BOT_NAMES[botIndex] ?? `PC ${player.seat + 1}`
+  player.name = nextPcName(room)
   player.connected = true
 }
 
@@ -38,11 +41,9 @@ export function replaceBotWithHuman(room, seat, { socketId, name, playerKey }) {
 
 export function fillEmptySeatsWithBots(room) {
   const usedSeats = new Set(room.players.map((player) => player.seat))
-  let botIndex = 0
   for (let seat = 0; seat < 4; seat += 1) {
     if (!usedSeats.has(seat)) {
-      room.players.push(createBotPlayer(room, seat, botIndex))
-      botIndex += 1
+      room.players.push(createBotPlayer(room, seat))
     }
   }
   room.players.sort((a, b) => a.seat - b.seat)
