@@ -9,7 +9,7 @@ import { createGameSocket } from './socket.js'
 import { canPlayCard } from '../lib/playRules.js'
 import { clearSession, getOrCreatePlayerKey, loadSession, saveSession } from './session.js'
 import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
-import { FlyingCardOverlay, shouldReduceMotion } from './CardFlyAnimation.jsx'
+import { FlyingCardOverlay, PlayingCardFace, shouldReduceMotion } from './CardFlyAnimation.jsx'
 
 function cardLabel(card) {
   const rankMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
@@ -24,14 +24,29 @@ function suitColor(suit, onDark = false) {
 }
 
 function CardButton({ card, onPlay, disabled, vertical = false, hidden = false }) {
+  if (vertical) {
+    return (
+      <button
+        type="button"
+        disabled={disabled}
+        onClick={(event) => onPlay(card.id, event.currentTarget)}
+        className={`h-[3.65rem] w-full transition disabled:cursor-not-allowed disabled:opacity-40 ${
+          hidden ? 'pointer-events-none opacity-0' : ''
+        }`}
+      >
+        <PlayingCardFace card={card} />
+      </button>
+    )
+  }
+
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={(event) => onPlay(card.id, event.currentTarget)}
-      className={`rounded-lg border border-slate-300 bg-white font-semibold shadow-sm transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 ${suitColor(card.s)} ${
-        vertical ? 'w-full px-1 py-2.5 text-sm' : 'px-2 py-2 text-sm'
-      } ${hidden ? 'pointer-events-none opacity-0' : ''}`}
+      className={`rounded-lg border border-slate-300 bg-white font-semibold shadow-sm transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 ${suitColor(card.s)} px-2 py-2 text-sm ${
+        hidden ? 'pointer-events-none opacity-0' : ''
+      }`}
     >
       {cardLabel(card)}
     </button>
