@@ -10,7 +10,7 @@ import { TRUMP, canPlayCard, getLegalCards, trickWinner } from '../shared/playRu
 const SUITS = ['C', 'D', 'H', 'S']
 const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
-export const MIN_CALL = 2
+export const MIN_CALL = 1
 export const MAX_CALL = 13
 export const REDEAL_CALL_SUM_MAX = 9
 

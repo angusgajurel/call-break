@@ -716,7 +716,7 @@ export default function OnlineApp({ onBack }) {
                 <HandDisplay hand={game.hand} phase={game.phase} />
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <h3 className="font-semibold text-amber-900">
-                    Call ({game.minCall ?? 2}–{game.maxCall ?? 13})
+                    Call ({game.minCall ?? 1}–{game.maxCall ?? 13})
                   </h3>
                   {game.calls[mySeat] !== null ? (
                     <p className="mt-2 text-sm text-amber-800">
@@ -725,8 +725,8 @@ export default function OnlineApp({ onBack }) {
                     </p>
                   ) : game.currentTurn === mySeat ? (
                     <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                      {Array.from({ length: (game.maxCall ?? 13) - (game.minCall ?? 2) + 1 }, (_, i) => {
-                        const call = i + (game.minCall ?? 2)
+                      {Array.from({ length: (game.maxCall ?? 13) - (game.minCall ?? 1) + 1 }, (_, i) => {
+                        const call = i + (game.minCall ?? 1)
                         return (
                           <button
                             key={call}

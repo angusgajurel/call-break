@@ -54,7 +54,7 @@ function chooseBotCall(game, seat) {
   const spades = hand.filter((card) => card.s === 'S').length
   const highs = hand.filter((card) => card.r >= 11).length
   const estimate = Math.round(spades * 0.55 + highs * 0.45)
-  return Math.min(13, Math.max(2, estimate || 2))
+  return Math.min(13, Math.max(1, estimate || 1))
 }
 
 function wouldWinTrick(trick, seat, card) {
