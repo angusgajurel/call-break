@@ -134,7 +134,7 @@ export function beginPlay(game) {
 
 function redealForLowCalls(game) {
   startRound(game)
-  game.statusMessage = 'Total calls were 9 or less — hand redealt.'
+  game.statusMessage = 'Hand redealt.'
 }
 
 export function submitCall(game, seat, call) {

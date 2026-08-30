@@ -696,8 +696,6 @@ export default function OnlineApp({ onBack }) {
                 </p>
               )}
 
-              {game.phase === 'playing' && game.isFirstTrickOfRound && null}
-
               {game.currentTrick?.cards?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {game.currentTrick.cards.map((play) => (
