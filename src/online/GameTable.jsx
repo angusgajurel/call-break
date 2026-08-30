@@ -3,6 +3,7 @@ import { formatMoney, formatScore, rankLabel } from '../lib/scoring.js'
 import { canPlayCard } from '../lib/playRules.js'
 import { PlayingCardFace } from './CardFlyAnimation.jsx'
 import { useIsPortrait } from './useOrientation.js'
+import './card-flight.css'
 import './game-table.css'
 
 const POSITIONS = ['bottom', 'left', 'top', 'right']
@@ -23,28 +24,22 @@ function initials(name) {
   return name.slice(0, 2).toUpperCase()
 }
 
-function TrickCenter({ trick, playerNames, mySeat, winnerSeat, trickDropRef }) {
+function TrickCenter({ trick, playerNames, mySeat, trickDropRef }) {
   const hasCards = trick?.cards?.length > 0
 
   return (
     <div ref={trickDropRef} className="trick-center" aria-label="Current trick">
       {hasCards ? (
-        trick.cards.map((play, index) => {
-          const isWinner = winnerSeat !== undefined && winnerSeat !== null && play.seat === winnerSeat
-          return (
-            <div
-              key={`${play.seat}-${play.card.id}`}
-              className={`trick-chip-dark ${isWinner ? 'trick-chip-dark-winner' : ''}`}
-            >
-              <PlayingCardFace card={play.card} className="playing-card--compact" />
-              <span className="trick-chip-name">
-                {play.seat === mySeat ? 'You' : playerNames[play.seat]}
-              </span>
-            </div>
-          )
-        })
+        trick.cards.map((play) => (
+          <div key={`${play.seat}-${play.card.id}`} className="trick-card-slot">
+            <PlayingCardFace card={play.card} className="playing-card--trick" />
+            <span className="trick-chip-name">
+              {play.seat === mySeat ? 'You' : playerNames[play.seat]}
+            </span>
+          </div>
+        ))
       ) : (
-        <p className="trick-placeholder">Cards played this trick appear here</p>
+        <p className="trick-placeholder">Play a card to start the trick</p>
       )}
     </div>
   )
@@ -163,7 +158,7 @@ function HandFan({
           if (phase !== 'playing') {
             return (
               <div key={card.id} className="hand-fan-card">
-                <PlayingCardFace card={card} className="playing-card--compact" />
+                <PlayingCardFace card={card} className="playing-card--hand" />
               </div>
             )
           }
@@ -176,7 +171,7 @@ function HandFan({
               disabled={animating || !playable}
               onClick={(event) => onPlay(card.id, event.currentTarget)}
             >
-              <PlayingCardFace card={card} className="playing-card--compact" />
+              <PlayingCardFace card={card} className="playing-card--hand" />
             </button>
           )
         })}
@@ -340,82 +335,87 @@ export default function GameTable({
           <p className="game-status-toast game-status-toast-amber">{game.statusMessage}</p>
         )}
 
-        <div className="game-felt">
-          {opponents.map(({ seat, position }) => (
-            <OpponentSeat
-              key={seat}
-              seat={seat}
-              game={game}
-              playerNames={playerNames}
-              mySeat={mySeat}
-              position={position}
-            />
-          ))}
+        <div className="game-table-main">
+          <div className="table-stage">
+            <div className="poker-table">
+              {opponents.map(({ seat, position }) => (
+                <OpponentSeat
+                  key={seat}
+                  seat={seat}
+                  game={game}
+                  playerNames={playerNames}
+                  mySeat={mySeat}
+                  position={position}
+                />
+              ))}
 
-          <div className="table-center">
-            {game.phase === 'bidding' && (
-              <BidModal
-                game={game}
-                playerNames={playerNames}
-                mySeat={mySeat}
-                onSubmitCall={onSubmitCall}
-              />
-            )}
+              <div className="table-center">
+                {game.phase === 'bidding' && (
+                  <BidModal
+                    game={game}
+                    playerNames={playerNames}
+                    mySeat={mySeat}
+                    onSubmitCall={onSubmitCall}
+                  />
+                )}
 
-            {game.phase === 'playing' && (
-              <TrickCenter
-                trick={game.currentTrick}
-                playerNames={playerNames}
-                mySeat={mySeat}
-                trickDropRef={trickDropRef}
-              />
-            )}
+                {game.phase === 'playing' && (
+                  <TrickCenter
+                    trick={game.currentTrick}
+                    playerNames={playerNames}
+                    mySeat={mySeat}
+                    trickDropRef={trickDropRef}
+                  />
+                )}
 
-            {game.gameComplete && (
-              <div className="bid-modal">
-                <div className="bid-modal-tab game-serif">Game Over</div>
-                <div className="bid-waiting">
-                  Final standings — open Scores for payouts.
-                </div>
+                {game.gameComplete && (
+                  <div className="bid-modal">
+                    <div className="bid-modal-tab game-serif">Game Over</div>
+                    <div className="bid-waiting">
+                      Final standings — open Scores for payouts.
+                    </div>
+                  </div>
+                )}
               </div>
-            )}
+
+              <p className="felt-phase-label">
+                {phaseLabel}
+                {game.phase === 'playing' && (
+                  <> · Turn: {playerNames[game.currentTurn]}</>
+                )}
+                {roomCode && <span className="felt-room-code">{roomCode}</span>}
+              </p>
+
+              {game.phase === 'playing' && game.lastTrick?.cards?.length > 0 && (
+                <div className="last-trick-strip">
+                  <p className="last-trick-title">Last trick · {game.completedTricks}/13</p>
+                  <div className="last-trick-cards">
+                    {game.lastTrick.cards.map((play) => (
+                      <div
+                        key={`${play.seat}-${play.card.id}`}
+                        className={play.seat === game.lastTrick.winner ? 'last-trick-winner' : ''}
+                      >
+                        <PlayingCardFace card={play.card} className="playing-card--mini" />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
           </div>
 
-          <p className="felt-phase-label">
-            {phaseLabel}
-            {game.phase === 'playing' && (
-              <> · Turn: {playerNames[game.currentTurn]}</>
-            )}
-            {roomCode && <span className="felt-room-code">{roomCode}</span>}
-          </p>
-
-          {game.phase === 'playing' && game.lastTrick?.cards?.length > 0 && (
-            <div className="last-trick-strip">
-              <p className="last-trick-title">Last trick · {game.completedTricks}/13</p>
-              <div className="last-trick-cards">
-                {game.lastTrick.cards.map((play) => (
-                  <PlayingCardFace
-                    key={`${play.seat}-${play.card.id}`}
-                    card={play.card}
-                    className={`playing-card--compact ${play.seat === game.lastTrick.winner ? 'last-trick-winner' : ''}`}
-                  />
-                ))}
-              </div>
-            </div>
-          )}
+          <HandFan
+            hand={game.hand}
+            phase={game.phase}
+            currentTurn={game.currentTurn}
+            mySeat={mySeat}
+            onPlay={onPlay}
+            currentTrick={game.currentTrick}
+            isFirstTrickOfRound={game.isFirstTrickOfRound}
+            hiddenCardId={hiddenCardId}
+            animating={animating}
+          />
         </div>
-
-        <HandFan
-          hand={game.hand}
-          phase={game.phase}
-          currentTurn={game.currentTurn}
-          mySeat={mySeat}
-          onPlay={onPlay}
-          currentTrick={game.currentTrick}
-          isFirstTrickOfRound={game.isFirstTrickOfRound}
-          hiddenCardId={hiddenCardId}
-          animating={animating}
-        />
       </div>
 
       {scoresOpen && (

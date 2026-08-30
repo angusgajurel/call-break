@@ -85,20 +85,39 @@
   border-color: var(--gold);
 }
 
-.game-felt {
-  position: relative;
+.game-table-main {
+  display: flex;
   flex: 1;
   min-height: 0;
-  margin: 0.25rem 0.5rem;
-  border-radius: 1.25rem;
-  border: 2px solid rgb(212 177 90 / 0.25);
+  flex-direction: column;
+}
+
+.table-stage {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 0.35rem 0.75rem 0.25rem;
+}
+
+.poker-table {
+  position: relative;
+  width: min(96%, 54rem);
+  height: auto;
+  max-height: min(62vh, 22rem);
+  aspect-ratio: 2.35 / 1;
+  min-height: 10.5rem;
+  border-radius: 50%;
+  border: 3px solid rgb(212 177 90 / 0.35);
   box-shadow:
-    inset 0 0 80px rgb(0 0 0 / 0.35),
-    0 8px 24px rgb(0 0 0 / 0.25);
+    inset 0 0 100px rgb(0 0 0 / 0.4),
+    inset 0 0 0 12px rgb(61 43 31 / 0.55),
+    0 12px 32px rgb(0 0 0 / 0.35);
   background:
-    radial-gradient(circle at 30% 20%, rgb(255 255 255 / 0.04), transparent 40%),
-    radial-gradient(circle at 70% 80%, rgb(0 0 0 / 0.12), transparent 45%),
-    linear-gradient(160deg, #256b47, var(--felt) 50%, var(--felt-dark));
+    radial-gradient(ellipse 70% 55% at 50% 42%, rgb(255 255 255 / 0.06), transparent 55%),
+    radial-gradient(ellipse 90% 70% at 50% 55%, #2d7a52 0%, var(--felt) 48%, var(--felt-dark) 100%);
 }
 
 .opponent-seat {
@@ -112,21 +131,21 @@
 }
 
 .opponent-seat-left {
-  left: 0.5rem;
+  left: -0.25rem;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(-15%, -50%);
 }
 
 .opponent-seat-top {
-  top: 0.5rem;
+  top: -0.25rem;
   left: 50%;
-  transform: translateX(-50%);
+  transform: translate(-50%, -20%);
 }
 
 .opponent-seat-right {
-  right: 0.5rem;
+  right: -0.25rem;
   top: 50%;
-  transform: translateY(-50%);
+  transform: translate(15%, -50%);
 }
 
 .opponent-avatar {
@@ -199,11 +218,10 @@
 
 .table-center {
   position: absolute;
-  inset: 0;
+  inset: 12% 14% 18%;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 3.5rem 5.5rem 1rem;
   pointer-events: none;
 }
 
@@ -276,8 +294,16 @@
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
-  gap: 0.5rem;
-  max-width: 20rem;
+  align-items: flex-end;
+  gap: 0.65rem;
+  max-width: 100%;
+}
+
+.trick-card-slot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
 }
 
 .trick-chip-dark {
@@ -298,27 +324,37 @@
 
 .hand-fan-bar {
   flex-shrink: 0;
-  padding: 0.35rem 0.5rem calc(0.5rem + env(safe-area-inset-bottom, 0px));
-  background: linear-gradient(0deg, rgb(0 0 0 / 0.55), transparent);
+  width: 100%;
+  max-width: 54rem;
+  margin: 0 auto;
+  padding: 0.25rem 0.5rem calc(0.45rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(0deg, rgb(0 0 0 / 0.45), transparent);
 }
 
 .hand-fan {
   display: flex;
   justify-content: center;
   align-items: flex-end;
-  min-height: 5.5rem;
+  min-height: 5.75rem;
   overflow-x: auto;
-  padding: 0 0.25rem;
+  overflow-y: visible;
+  padding: 0.35rem 0.5rem 0;
+  scrollbar-width: thin;
 }
 
 .hand-fan-card {
   flex-shrink: 0;
-  width: 2.85rem;
-  height: 4rem;
-  margin-left: -1.15rem;
+  display: block;
+  width: 3.35rem;
+  height: 4.75rem;
+  margin-left: -1.35rem;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
   transition:
     transform 0.15s ease,
-    margin 0.15s ease;
+    z-index 0s;
 }
 
 .hand-fan-card:first-child {
@@ -411,10 +447,11 @@
 
 .felt-phase-label {
   position: absolute;
-  bottom: 0.5rem;
-  right: 0.75rem;
+  right: 10%;
+  bottom: 12%;
   font-size: 0.65rem;
   color: rgb(248 250 252 / 0.55);
+  pointer-events: none;
 }
 
 .felt-room-code {
@@ -482,24 +519,34 @@
   color: #fca5a5;
 }
 
-.hand-fan-card .playing-card {
-  width: 100%;
-  height: 100%;
+.hand-fan-card .playing-card--hand {
+  width: 3.35rem;
+  height: 4.75rem;
+  font-size: 0.72rem;
 }
 
-.hand-fan-card .playing-card--compact {
-  font-size: 0.55rem;
+.trick-card-slot .playing-card--trick {
+  width: 3rem;
+  height: 4.2rem;
+  font-size: 0.68rem;
+}
+
+.last-trick-cards .playing-card--mini {
+  width: 2.1rem;
+  height: 2.95rem;
+  font-size: 0.5rem;
 }
 
 .last-trick-strip {
   position: absolute;
-  left: 0.75rem;
-  bottom: 0.5rem;
-  max-width: 12rem;
+  left: 8%;
+  bottom: 14%;
+  max-width: 11rem;
   border-radius: 0.5rem;
   border: 1px solid rgb(212 177 90 / 0.25);
   background: rgb(0 0 0 / 0.35);
   padding: 0.35rem 0.5rem;
+  pointer-events: none;
 }
 
 .last-trick-title {

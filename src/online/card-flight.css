@@ -9,6 +9,7 @@
 
 .playing-card {
   position: relative;
+  flex-shrink: 0;
   width: 100%;
   height: 100%;
   transform-style: preserve-3d;
@@ -37,6 +38,42 @@
 
 .playing-card--compact .playing-card-center {
   font-size: 1.45em;
+}
+
+.playing-card--hand .playing-card-rank {
+  font-size: 0.9em;
+}
+
+.playing-card--hand .playing-card-suit-sm {
+  font-size: 0.75em;
+}
+
+.playing-card--hand .playing-card-center {
+  font-size: 1.85em;
+}
+
+.playing-card--trick .playing-card-rank {
+  font-size: 0.88em;
+}
+
+.playing-card--trick .playing-card-suit-sm {
+  font-size: 0.72em;
+}
+
+.playing-card--trick .playing-card-center {
+  font-size: 1.7em;
+}
+
+.playing-card--mini .playing-card-rank {
+  font-size: 0.85em;
+}
+
+.playing-card--mini .playing-card-suit-sm {
+  font-size: 0.7em;
+}
+
+.playing-card--mini .playing-card-center {
+  font-size: 1.5em;
 }
 
 .playing-card--compact .playing-card-corner-tl {
