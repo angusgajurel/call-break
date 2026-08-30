@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   DEFAULT_PAYOUTS,
   formatMoney,
@@ -9,6 +9,7 @@ import { createGameSocket } from './socket.js'
 import { canPlayCard } from '../lib/playRules.js'
 import { clearSession, getOrCreatePlayerKey, loadSession, saveSession } from './session.js'
 import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
+import { FlyingCardOverlay, shouldReduceMotion } from './CardFlyAnimation.jsx'
 
 function cardLabel(card) {
   const rankMap = { 11: 'J', 12: 'Q', 13: 'K', 14: 'A' }
@@ -22,15 +23,15 @@ function suitColor(suit, onDark = false) {
   return onDark ? 'text-white' : 'text-slate-900'
 }
 
-function CardButton({ card, onPlay, disabled, vertical = false }) {
+function CardButton({ card, onPlay, disabled, vertical = false, hidden = false }) {
   return (
     <button
       type="button"
       disabled={disabled}
-      onClick={() => onPlay(card.id)}
+      onClick={(event) => onPlay(card.id, event.currentTarget)}
       className={`rounded-lg border border-slate-300 bg-white font-semibold shadow-sm transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 ${suitColor(card.s)} ${
         vertical ? 'w-full px-1 py-2.5 text-sm' : 'px-2 py-2 text-sm'
-      }`}
+      } ${hidden ? 'pointer-events-none opacity-0' : ''}`}
     >
       {cardLabel(card)}
     </button>
@@ -87,13 +88,22 @@ function TrickChips({ trick, playerNames, mySeat, winnerSeat }) {
   )
 }
 
-function CurrentTrickPanel({ trick, playerNames, mySeat }) {
-  if (!trick?.cards?.length) return null
+function CurrentTrickPanel({ trick, playerNames, mySeat, containerRef, showPlaceholder = false }) {
+  const hasCards = trick?.cards?.length > 0
 
   return (
-    <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3">
+    <div
+      ref={containerRef}
+      className={`mt-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3 ${
+        showPlaceholder && !hasCards ? 'min-h-[3.25rem]' : ''
+      }`}
+    >
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">Current trick</p>
-      <TrickChips trick={trick} playerNames={playerNames} mySeat={mySeat} />
+      {hasCards ? (
+        <TrickChips trick={trick} playerNames={playerNames} mySeat={mySeat} />
+      ) : showPlaceholder ? (
+        <p className="text-center text-xs text-emerald-700/60">Cards played this trick appear here</p>
+      ) : null}
     </div>
   )
 }
@@ -128,6 +138,8 @@ function HandDisplay({
   currentTrick,
   isFirstTrickOfRound,
   vertical = false,
+  hiddenCardId = null,
+  animating = false,
 }) {
   if (!hand?.length) return null
 
@@ -155,7 +167,12 @@ function HandDisplay({
                 key={card.id}
                 card={card}
                 vertical
-                disabled={!isMyTurn || !canPlayCard(hand, card, currentTrick, playOptions)}
+                hidden={card.id === hiddenCardId}
+                disabled={
+                  animating ||
+                  !isMyTurn ||
+                  !canPlayCard(hand, card, currentTrick, playOptions)
+                }
                 onPlay={onPlay}
               />
             ) : (
@@ -180,7 +197,10 @@ function HandDisplay({
             <CardButton
               key={card.id}
               card={card}
-              disabled={!isMyTurn || !canPlayCard(hand, card, currentTrick, playOptions)}
+              hidden={card.id === hiddenCardId}
+              disabled={
+                animating || !isMyTurn || !canPlayCard(hand, card, currentTrick, playOptions)
+              }
               onPlay={onPlay}
             />
           ) : (
@@ -209,6 +229,10 @@ export default function OnlineApp({ onBack }) {
   const [reconnecting, setReconnecting] = useState(Boolean(savedSession?.roomCode))
   const [availableRooms, setAvailableRooms] = useState([])
   const [pcSeatOffer, setPcSeatOffer] = useState(null)
+  const [flyingCard, setFlyingCard] = useState(null)
+  const [pendingCardId, setPendingCardId] = useState(null)
+  const trickDropRef = useRef(null)
+  const pendingPlayRef = useRef(null)
 
   const inRoom = Boolean(room?.code)
   const { micOn, voiceError, remoteStreams, toggleMic } = useVoiceChat(socket, room?.code, inRoom)
@@ -398,7 +422,40 @@ export default function OnlineApp({ onBack }) {
     if (call > 5 && !window.confirm(`You're bidding ${call}. Are you sure?`)) return
     socket.emit('submit-call', { call })
   }
-  const playCard = (cardId) => socket.emit('play-card', { cardId })
+
+  const finishCardFlight = useCallback(() => {
+    const cardId = pendingPlayRef.current
+    if (!cardId) return
+    pendingPlayRef.current = null
+    socket.emit('play-card', { cardId })
+    setFlyingCard(null)
+    setPendingCardId(null)
+  }, [socket])
+
+  const playCard = (cardId, sourceElement = null) => {
+    if (flyingCard || pendingPlayRef.current) return
+
+    const card = game?.hand?.find((entry) => entry.id === cardId)
+    const dropTarget = trickDropRef.current
+    const canAnimate =
+      !shouldReduceMotion() &&
+      card &&
+      sourceElement &&
+      dropTarget &&
+      game?.phase === 'playing' &&
+      game.currentTurn === you?.seat
+
+    if (!canAnimate) {
+      socket.emit('play-card', { cardId })
+      return
+    }
+
+    const from = sourceElement.getBoundingClientRect()
+    const to = dropTarget.getBoundingClientRect()
+    pendingPlayRef.current = cardId
+    setPendingCardId(cardId)
+    setFlyingCard({ card, from, to })
+  }
   const leaveRoom = () => {
     socket.emit('leave-room', { playerKey })
     clearSession()
@@ -783,6 +840,7 @@ export default function OnlineApp({ onBack }) {
 
         {game && (
           <div className="flex flex-col gap-4">
+            <FlyingCardOverlay flight={flyingCard} onComplete={finishCardFlight} />
             <div className="flex min-h-0 items-stretch gap-3 sm:gap-4">
               <div className="min-w-0 flex-1 space-y-4">
                 <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -818,11 +876,13 @@ export default function OnlineApp({ onBack }) {
                     </p>
                   )}
 
-                  {game.phase === 'playing' && game.currentTrick?.cards?.length > 0 && (
+                  {game.phase === 'playing' && (
                     <CurrentTrickPanel
                       trick={game.currentTrick}
                       playerNames={playerNames}
                       mySeat={mySeat}
+                      containerRef={trickDropRef}
+                      showPlaceholder
                     />
                   )}
                 </div>
@@ -898,6 +958,8 @@ export default function OnlineApp({ onBack }) {
                     currentTrick={game.currentTrick}
                     isFirstTrickOfRound={game.isFirstTrickOfRound}
                     onPlay={playCard}
+                    hiddenCardId={pendingCardId}
+                    animating={Boolean(flyingCard || pendingCardId)}
                     vertical
                   />
                 </div>
