@@ -22,23 +22,25 @@ function suitColor(suit, onDark = false) {
   return onDark ? 'text-white' : 'text-slate-900'
 }
 
-function CardButton({ card, onPlay, disabled }) {
+function CardButton({ card, onPlay, disabled, vertical = false }) {
   return (
     <button
       type="button"
       disabled={disabled}
       onClick={() => onPlay(card.id)}
-      className={`rounded-lg border border-slate-300 bg-white px-2 py-2 text-sm font-semibold shadow-sm transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 ${suitColor(card.s)}`}
+      className={`rounded-lg border border-slate-300 bg-white font-semibold shadow-sm transition hover:border-emerald-500 disabled:cursor-not-allowed disabled:opacity-40 ${suitColor(card.s)} ${
+        vertical ? 'w-full px-1 py-2.5 text-sm' : 'px-2 py-2 text-sm'
+      }`}
     >
       {cardLabel(card)}
     </button>
   )
 }
 
-function CardBadge({ card, large = false }) {
+function CardBadge({ card, large = false, fullWidth = false }) {
   return (
     <span
-      className={`inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white font-semibold shadow-sm ${large ? 'min-w-[3.25rem] px-3 py-3 text-lg' : 'px-2 py-2 text-sm'} ${suitColor(card.s)}`}
+      className={`inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white font-semibold shadow-sm ${fullWidth ? 'w-full' : ''} ${large ? 'min-w-[3.25rem] px-3 py-3 text-lg' : 'px-2 py-2 text-sm'} ${suitColor(card.s)}`}
     >
       {cardLabel(card)}
     </span>
@@ -180,12 +182,54 @@ function LastTrickPanel({ trick, playerNames, mySeat, trickNumber }) {
   )
 }
 
-function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick, isFirstTrickOfRound }) {
+function HandDisplay({
+  hand,
+  phase,
+  currentTurn,
+  mySeat,
+  onPlay,
+  currentTrick,
+  isFirstTrickOfRound,
+  vertical = false,
+}) {
   if (!hand?.length) return null
 
   const isMyTurn = phase === 'playing' && currentTurn === mySeat
   const playOptions = {
     isFirstTrickOfRound: isFirstTrickOfRound && !currentTrick?.cards?.length,
+  }
+
+  if (vertical) {
+    return (
+      <aside className="flex h-full min-h-0 flex-col rounded-2xl border border-emerald-200 bg-white/95 p-2 shadow-lg backdrop-blur-sm">
+        <div className="mb-2 border-b border-slate-100 pb-2 text-center">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-800">Your hand</p>
+          <p className="text-xs text-slate-500">{hand.length} cards</p>
+          {isMyTurn && (
+            <p className="mt-1 rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-800">
+              Your turn
+            </p>
+          )}
+        </div>
+        <div className="flex min-h-0 flex-1 flex-col gap-1.5 overflow-y-auto">
+          {hand.map((card) =>
+            phase === 'playing' ? (
+              <CardButton
+                key={card.id}
+                card={card}
+                vertical
+                disabled={!isMyTurn || !canPlayCard(hand, card, currentTrick, playOptions)}
+                onPlay={onPlay}
+              />
+            ) : (
+              <span key={card.id} className="block w-full">
+                <CardBadge card={card} fullWidth />
+              </span>
+            ),
+          )}
+        </div>
+      </aside>
+    )
   }
 
   return (
@@ -730,7 +774,7 @@ export default function OnlineApp({ onBack }) {
     <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-white to-amber-50 px-3 py-4 pb-24">
       <VoiceAudio remoteStreams={remoteStreams} players={players} />
 
-      <div className="mx-auto max-w-4xl">
+      <div className="mx-auto max-w-6xl">
         <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-xl font-bold text-emerald-900">Call Break Online</h1>
@@ -801,102 +845,127 @@ export default function OnlineApp({ onBack }) {
         )}
 
         {game && (
-          <div className="space-y-4">
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <p className="font-semibold text-emerald-900">
-                  Round {game.round}/5 ·{' '}
-                  {game.phase === 'bidding'
-                    ? 'Bidding'
-                    : game.phase === 'playing'
-                      ? 'Playing'
-                      : 'Finished'}
-                </p>
-                <p className="text-sm text-slate-500">Dealer: {playerNames[game.dealer]}</p>
-              </div>
-
-              {game.statusMessage && (
-                <p className="mt-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
-                  {game.statusMessage}
-                </p>
-              )}
-
-              {game.phase === 'bidding' && (
-                <p className="mt-2 text-sm text-slate-600">
-                  Calling: <strong>{playerNames[game.currentTurn]}</strong>
-                  {game.currentTurn === mySeat ? ' (you)' : ''}
-                </p>
-              )}
-
-              {game.phase === 'playing' && (
-                <p className="mt-2 text-sm text-slate-600">
-                  Turn: <strong>{playerNames[game.currentTurn]}</strong>
-                  {game.currentTurn === mySeat ? ' (you)' : ''}
-                </p>
-              )}
-
-              {game.phase === 'playing' && game.currentTrick?.cards?.length > 0 && (
-                <CurrentTrickPanel
-                  trick={game.currentTrick}
-                  playerNames={playerNames}
-                  mySeat={mySeat}
-                />
-              )}
-            </div>
-
-            {(game.phase === 'playing' || game.gameComplete) && game.lastTrick?.cards?.length > 0 && (
-              <LastTrickPanel
-                trick={game.lastTrick}
-                playerNames={playerNames}
-                mySeat={mySeat}
-                trickNumber={game.completedTricks}
-              />
-            )}
-
-            {game.phase === 'bidding' && (
-              <>
-                <HandDisplay hand={game.hand} phase={game.phase} />
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <h3 className="font-semibold text-amber-900">
-                    Call ({game.minCall ?? 1}–{game.maxCall ?? 13})
-                  </h3>
-                  {game.calls[mySeat] !== null ? (
-                    <p className="mt-2 text-sm text-amber-800">
-                      Your call: {game.calls[mySeat]}. Waiting for{' '}
-                      {playerNames[game.currentTurn]} to call…
+          <div className="flex flex-col gap-4">
+            <div className="flex min-h-0 items-stretch gap-3 sm:gap-4">
+              <div className="min-w-0 flex-1 space-y-4">
+                <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold text-emerald-900">
+                      Round {game.round}/5 ·{' '}
+                      {game.phase === 'bidding'
+                        ? 'Bidding'
+                        : game.phase === 'playing'
+                          ? 'Playing'
+                          : 'Finished'}
                     </p>
-                  ) : game.currentTurn === mySeat ? (
-                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
-                      {Array.from({ length: (game.maxCall ?? 13) - (game.minCall ?? 1) + 1 }, (_, i) => {
-                        const call = i + (game.minCall ?? 1)
-                        return (
-                          <button
-                            key={call}
-                            type="button"
-                            onClick={() => submitCall(call)}
-                            className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
-                          >
-                            {call}
-                          </button>
-                        )
-                      })}
-                    </div>
-                  ) : (
-                    <p className="mt-2 text-sm text-amber-800">
-                      Waiting for <strong>{playerNames[game.currentTurn]}</strong> to call…
+                    <p className="text-sm text-slate-500">Dealer: {playerNames[game.dealer]}</p>
+                  </div>
+
+                  {game.statusMessage && (
+                    <p className="mt-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+                      {game.statusMessage}
                     </p>
                   )}
-                  <div className="mt-4 space-y-1 border-t border-amber-200 pt-3 text-sm text-amber-900">
-                    {playerNames.map((player, index) => (
-                      <div key={player} className="flex justify-between">
-                        <span>{player}</span>
-                        <span>{game.calls[index] !== null ? `call ${game.calls[index]}` : '—'}</span>
-                      </div>
-                    ))}
-                  </div>
+
+                  {game.phase === 'bidding' && (
+                    <p className="mt-2 text-sm text-slate-600">
+                      Calling: <strong>{playerNames[game.currentTurn]}</strong>
+                      {game.currentTurn === mySeat ? ' (you)' : ''}
+                    </p>
+                  )}
+
+                  {game.phase === 'playing' && (
+                    <p className="mt-2 text-sm text-slate-600">
+                      Turn: <strong>{playerNames[game.currentTurn]}</strong>
+                      {game.currentTurn === mySeat ? ' (you)' : ''}
+                    </p>
+                  )}
+
+                  {game.phase === 'playing' && game.currentTrick?.cards?.length > 0 && (
+                    <CurrentTrickPanel
+                      trick={game.currentTrick}
+                      playerNames={playerNames}
+                      mySeat={mySeat}
+                    />
+                  )}
                 </div>
-              </>
-            )}
+
+                {(game.phase === 'playing' || game.gameComplete) && game.lastTrick?.cards?.length > 0 && (
+                  <LastTrickPanel
+                    trick={game.lastTrick}
+                    playerNames={playerNames}
+                    mySeat={mySeat}
+                    trickNumber={game.completedTricks}
+                  />
+                )}
+
+                {game.phase === 'bidding' && (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                    <h3 className="font-semibold text-amber-900">
+                      Call ({game.minCall ?? 1}–{game.maxCall ?? 13})
+                    </h3>
+                    {game.calls[mySeat] !== null ? (
+                      <p className="mt-2 text-sm text-amber-800">
+                        Your call: {game.calls[mySeat]}. Waiting for{' '}
+                        {playerNames[game.currentTurn]} to call…
+                      </p>
+                    ) : game.currentTurn === mySeat ? (
+                      <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                        {Array.from({ length: (game.maxCall ?? 13) - (game.minCall ?? 1) + 1 }, (_, i) => {
+                          const call = i + (game.minCall ?? 1)
+                          return (
+                            <button
+                              key={call}
+                              type="button"
+                              onClick={() => submitCall(call)}
+                              className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
+                            >
+                              {call}
+                            </button>
+                          )
+                        })}
+                      </div>
+                    ) : (
+                      <p className="mt-2 text-sm text-amber-800">
+                        Waiting for <strong>{playerNames[game.currentTurn]}</strong> to call…
+                      </p>
+                    )}
+                    <div className="mt-4 space-y-1 border-t border-amber-200 pt-3 text-sm text-amber-900">
+                      {playerNames.map((player, index) => (
+                        <div key={player} className="flex justify-between">
+                          <span>{player}</span>
+                          <span>{game.calls[index] !== null ? `call ${game.calls[index]}` : '—'}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {game.gameComplete && (
+                  <div className="rounded-2xl border-2 border-amber-400 bg-amber-100 p-5 text-center">
+                    <h3 className="text-lg font-bold text-amber-950">Game Over</h3>
+                    <p className="mt-2 text-amber-900">
+                      Final standings below. Tied payouts are averaged.
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {game.hand?.length > 0 && (
+                <div className="w-[4.5rem] shrink-0 sm:w-24 lg:sticky lg:top-4 lg:self-start lg:max-h-[calc(100vh-7rem)] lg:min-h-[20rem]">
+                  <HandDisplay
+                    hand={game.hand}
+                    phase={game.phase}
+                    currentTurn={game.currentTurn}
+                    mySeat={mySeat}
+                    currentTrick={game.currentTrick}
+                    isFirstTrickOfRound={game.isFirstTrickOfRound}
+                    onPlay={playCard}
+                    vertical
+                  />
+                </div>
+              )}
+            </div>
 
             <div className="rounded-2xl border border-emerald-900 bg-emerald-950 p-4 text-white">
               <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-200">
@@ -933,27 +1002,6 @@ export default function OnlineApp({ onBack }) {
                 ))}
               </div>
             </div>
-
-            {game.phase === 'playing' && (
-              <HandDisplay
-                hand={game.hand}
-                phase={game.phase}
-                currentTurn={game.currentTurn}
-                mySeat={mySeat}
-                currentTrick={game.currentTrick}
-                isFirstTrickOfRound={game.isFirstTrickOfRound}
-                onPlay={playCard}
-              />
-            )}
-
-            {game.gameComplete && (
-              <div className="rounded-2xl border-2 border-amber-400 bg-amber-100 p-5 text-center">
-                <h3 className="text-lg font-bold text-amber-950">Game Over</h3>
-                <p className="mt-2 text-amber-900">
-                  Final standings above. Tied payouts are averaged.
-                </p>
-              </div>
-            )}
           </div>
         )}
       </div>
