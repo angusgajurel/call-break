@@ -53,7 +53,10 @@ function wouldWinTrick(trick, seat, card) {
 
 function pickBotCard(game, seat) {
   const hand = game.hands[seat] ?? []
-  const legal = getLegalCards(hand, game.currentTrick)
+  const playOptions = {
+    isFirstTrickOfRound: game.completedTricks === 0 && game.currentTrick.cards.length === 0,
+  }
+  const legal = getLegalCards(hand, game.currentTrick, playOptions)
   if (!legal.length) return null
 
   const winningCards = legal.filter((card) => wouldWinTrick(game.currentTrick, seat, card))

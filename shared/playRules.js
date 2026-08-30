@@ -39,9 +39,16 @@ function beatsCurrentWinner(card, trick) {
   return false
 }
 
-export function getLegalCards(hand, trick) {
+function leadOptions(hand, { isFirstTrickOfRound = false } = {}) {
+  if (!isFirstTrickOfRound) return [...hand]
+  const nonSpades = hand.filter((card) => card.s !== TRUMP)
+  if (nonSpades.length > 0) return nonSpades
+  return [...hand]
+}
+
+export function getLegalCards(hand, trick, options = {}) {
   if (!hand?.length) return []
-  if (!trick?.cards?.length) return [...hand]
+  if (!trick?.cards?.length) return leadOptions(hand, options)
 
   const leadSuit = trick.cards[0].card.s
   const leadCards = hand.filter((card) => card.s === leadSuit)
@@ -65,17 +72,22 @@ export function getLegalCards(hand, trick) {
   return [...hand]
 }
 
-export function canPlayCard(hand, card, trick) {
-  return getLegalCards(hand, trick).some((legal) => legal.id === card.id)
+export function canPlayCard(hand, card, trick, options = {}) {
+  return getLegalCards(hand, trick, options).some((legal) => legal.id === card.id)
 }
 
-export function playHint(hand, trick) {
-  if (!trick?.cards?.length) return 'Your lead — play any card.'
+export function playHint(hand, trick, options = {}) {
+  if (!trick?.cards?.length) {
+    if (options.isFirstTrickOfRound && hand.some((card) => card.s !== TRUMP)) {
+      return 'First trick lead — you cannot lead a spade unless spades are all you have left.'
+    }
+    return 'Your lead — play any card.'
+  }
 
   const leadSuit = trick.cards[0].card.s
   const leadCards = hand.filter((card) => card.s === leadSuit)
   const spadeCards = hand.filter((card) => card.s === TRUMP)
-  const legal = getLegalCards(hand, trick)
+  const legal = getLegalCards(hand, trick, options)
 
   if (leadCards.length > 0) {
     const mustBeat = leadCards.some((card) => beatsCurrentWinner(card, trick))
@@ -98,7 +110,7 @@ export function playHint(hand, trick) {
   }
 
   if (legal.length < hand.length) {
-    return 'Only highlighted cards are legal.'
+    return 'Void in led suit and spades — play any off-suit card (it cannot win).'
   }
 
   return 'Play any card.'

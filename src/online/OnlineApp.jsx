@@ -44,11 +44,14 @@ function CardBadge({ card }) {
   )
 }
 
-function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick }) {
+function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick, isFirstTrickOfRound }) {
   if (!hand?.length) return null
 
   const isMyTurn = phase === 'playing' && currentTurn === mySeat
-  const hint = isMyTurn ? playHint(hand, currentTrick) : null
+  const playOptions = {
+    isFirstTrickOfRound: isFirstTrickOfRound && !currentTrick?.cards?.length,
+  }
+  const hint = isMyTurn ? playHint(hand, currentTrick, playOptions) : null
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
@@ -62,7 +65,7 @@ function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick })
             <CardButton
               key={card.id}
               card={card}
-              disabled={!isMyTurn || !canPlayCard(hand, card, currentTrick)}
+              disabled={!isMyTurn || !canPlayCard(hand, card, currentTrick, playOptions)}
               onPlay={onPlay}
             />
           ) : (
@@ -641,6 +644,12 @@ export default function OnlineApp({ onBack }) {
                 </p>
               )}
 
+              {game.phase === 'playing' && game.isFirstTrickOfRound && (
+                <p className="mt-2 text-xs text-slate-500">
+                  First trick: spades cannot be led unless that player holds only spades.
+                </p>
+              )}
+
               {game.currentTrick?.cards?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
                   {game.currentTrick.cards.map((play) => (
@@ -748,6 +757,7 @@ export default function OnlineApp({ onBack }) {
                 currentTurn={game.currentTurn}
                 mySeat={mySeat}
                 currentTrick={game.currentTrick}
+                isFirstTrickOfRound={game.isFirstTrickOfRound}
                 onPlay={playCard}
               />
             )}

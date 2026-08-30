@@ -169,7 +169,13 @@ export function playCard(game, seat, cardId) {
   const hand = game.hands[seat]
   const card = hand.find((c) => c.id === cardId)
   if (!card) return { error: 'Card not in hand' }
-  if (!canPlayCard(hand, card, game.currentTrick)) return { error: 'Illegal card for this trick' }
+
+  const playOptions = {
+    isFirstTrickOfRound: game.completedTricks === 0 && game.currentTrick.cards.length === 0,
+  }
+  if (!canPlayCard(hand, card, game.currentTrick, playOptions)) {
+    return { error: 'Illegal card for this trick' }
+  }
 
   hand.splice(hand.indexOf(card), 1)
   game.currentTrick.cards.push({ seat, card })
@@ -239,6 +245,7 @@ export function getPublicGameState(game, seat) {
     callSum: allCallsSubmitted(game) ? callSum(game) : null,
     statusMessage: game.statusMessage,
     dealerCut: game.dealerCut,
+    isFirstTrickOfRound: game.completedTricks === 0,
   }
 }
 
