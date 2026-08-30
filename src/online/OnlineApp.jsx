@@ -6,7 +6,7 @@ import {
   rankLabel,
 } from '../lib/scoring.js'
 import { createGameSocket } from './socket.js'
-import { canPlayCard, playHint } from '../lib/playRules.js'
+import { canPlayCard } from '../lib/playRules.js'
 import { clearSession, getOrCreatePlayerKey, loadSession, saveSession } from './session.js'
 import { useVoiceChat, VoiceAudio } from './useVoiceChat.jsx'
 
@@ -51,14 +51,12 @@ function HandDisplay({ hand, phase, currentTurn, mySeat, onPlay, currentTrick, i
   const playOptions = {
     isFirstTrickOfRound: isFirstTrickOfRound && !currentTrick?.cards?.length,
   }
-  const hint = isMyTurn ? playHint(hand, currentTrick, playOptions) : null
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-      <h3 className="mb-1 font-semibold text-slate-800">
+      <h3 className="mb-3 font-semibold text-slate-800">
         Your hand <span className="text-sm font-normal text-slate-500">({hand.length} cards)</span>
       </h3>
-      {hint && <p className="mb-3 text-sm text-amber-700">{hint}</p>}
       <div className="flex flex-wrap gap-2">
         {hand.map((card) =>
           phase === 'playing' ? (
@@ -632,9 +630,6 @@ export default function OnlineApp({ onBack }) {
         {room?.status === 'lobby' && (
           <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h2 className="font-semibold text-slate-800">Waiting for players ({players.length}/4)</h2>
-            <p className="mt-1 text-sm text-slate-500">
-              Play is counter-clockwise. Empty seats are filled by PC players when you start.
-            </p>
             <ul className="mt-3 space-y-2">
               {players.map((player) => (
                 <li key={player.id} className="flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2">
@@ -657,7 +652,7 @@ export default function OnlineApp({ onBack }) {
                 onClick={startGame}
                 className="mt-4 w-full rounded-xl bg-emerald-700 py-3 font-semibold text-white disabled:bg-slate-300"
               >
-                Start Game{players.length < 4 ? ' (PC fills empty seats)' : ''}
+                Start Game
               </button>
             )}
             {!isHost && (
@@ -687,22 +682,10 @@ export default function OnlineApp({ onBack }) {
                 </p>
               )}
 
-              {game.dealerCut?.length > 0 && game.round === 1 && (
-                <p className="mt-2 text-xs text-slate-500">
-                  Cut for dealer:{' '}
-                  {game.dealerCut.map((entry) => (
-                    <span key={entry.seat} className="mr-2">
-                      {playerNames[entry.seat]} {cardLabel(entry.card)}
-                    </span>
-                  ))}
-                </p>
-              )}
-
               {game.phase === 'bidding' && (
                 <p className="mt-2 text-sm text-slate-600">
                   Calling: <strong>{playerNames[game.currentTurn]}</strong>
                   {game.currentTurn === mySeat ? ' (you)' : ''}
-                  <span className="ml-2 text-slate-400">· counter-clockwise from dealer&apos;s right</span>
                 </p>
               )}
 
@@ -710,15 +693,10 @@ export default function OnlineApp({ onBack }) {
                 <p className="mt-2 text-sm text-slate-600">
                   Turn: <strong>{playerNames[game.currentTurn]}</strong>
                   {game.currentTurn === mySeat ? ' (you)' : ''}
-                  <span className="ml-2 text-slate-400">· counter-clockwise</span>
                 </p>
               )}
 
-              {game.phase === 'playing' && game.isFirstTrickOfRound && (
-                <p className="mt-2 text-xs text-slate-500">
-                  First trick: spades cannot be led unless that player holds only spades.
-                </p>
-              )}
+              {game.phase === 'playing' && game.isFirstTrickOfRound && null}
 
               {game.currentTrick?.cards?.length > 0 && (
                 <div className="mt-3 flex flex-wrap gap-2">
@@ -740,12 +718,8 @@ export default function OnlineApp({ onBack }) {
                 <HandDisplay hand={game.hand} phase={game.phase} />
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
                   <h3 className="font-semibold text-amber-900">
-                    Place your call ({game.minCall ?? 2}–{game.maxCall ?? 13})
+                    Call ({game.minCall ?? 2}–{game.maxCall ?? 13})
                   </h3>
-                  <p className="mt-1 text-sm text-amber-800">
-                    Calls go counter-clockwise and lock in after the next player speaks. Minimum
-                    call is 2. If all four calls total 9 or less, the hand is redealt.
-                  </p>
                   {game.calls[mySeat] !== null ? (
                     <p className="mt-2 text-sm text-amber-800">
                       Your call: {game.calls[mySeat]}. Waiting for{' '}
