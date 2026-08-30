@@ -34,13 +34,68 @@ function CardButton({ card, onPlay, disabled }) {
   )
 }
 
-function CardBadge({ card }) {
+function CardBadge({ card, large = false }) {
   return (
     <span
-      className={`inline-flex rounded-lg border border-slate-200 bg-white px-2 py-2 text-sm font-semibold shadow-sm ${suitColor(card.s)}`}
+      className={`inline-flex items-center justify-center rounded-xl border border-slate-200 bg-white font-semibold shadow-sm ${large ? 'min-w-[3.25rem] px-3 py-3 text-lg' : 'px-2 py-2 text-sm'} ${suitColor(card.s)}`}
     >
       {cardLabel(card)}
     </span>
+  )
+}
+
+function TrickPanel({ title, subtitle, trick, playerNames, winnerSeat, mySeat }) {
+  if (!trick?.cards?.length) return null
+
+  return (
+    <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-50 to-white">
+      <div className="flex items-center justify-between gap-2 border-b border-slate-200/80 bg-white/80 px-4 py-3">
+        <div>
+          <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+          {subtitle && <p className="text-xs text-slate-500">{subtitle}</p>}
+        </div>
+        {winnerSeat !== undefined && winnerSeat !== null && (
+          <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-semibold text-amber-900">
+            {playerNames[winnerSeat]}
+            {winnerSeat === mySeat ? ' (you)' : ''} won
+          </span>
+        )}
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
+        {trick.cards.map((play, index) => {
+          const isWinner = winnerSeat === play.seat
+          const isMe = play.seat === mySeat
+
+          return (
+            <div
+              key={`${play.seat}-${play.card.id}`}
+              className={`relative flex flex-col items-center rounded-xl border px-3 py-3 text-center transition ${
+                isWinner
+                  ? 'border-amber-300 bg-amber-50 shadow-md shadow-amber-100'
+                  : 'border-slate-200 bg-white'
+              }`}
+            >
+              {isWinner && (
+                <span className="absolute -top-2 rounded-full bg-amber-400 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-amber-950">
+                  Winner
+                </span>
+              )}
+              {index === 0 && !isWinner && (
+                <span className="absolute -top-2 rounded-full bg-slate-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                  Lead
+                </span>
+              )}
+              <p className={`mb-2 truncate text-xs font-medium ${isMe ? 'text-emerald-700' : 'text-slate-600'}`}>
+                {playerNames[play.seat]}
+                {isMe ? ' · you' : ''}
+              </p>
+              <CardBadge card={play.card} large />
+            </div>
+          )
+        })}
+      </div>
+    </div>
   )
 }
 
@@ -696,18 +751,24 @@ export default function OnlineApp({ onBack }) {
                 </p>
               )}
 
-              {game.currentTrick?.cards?.length > 0 && (
-                <div className="mt-3 flex flex-wrap gap-2">
-                  {game.currentTrick.cards.map((play) => (
-                    <div
-                      key={`${play.seat}-${play.card.id}`}
-                      className="rounded-lg bg-slate-100 px-3 py-2 text-sm"
-                    >
-                      {playerNames[play.seat]}:{' '}
-                      <span className={suitColor(play.card.s)}>{cardLabel(play.card)}</span>
-                    </div>
-                  ))}
-                </div>
+              {game.phase === 'playing' && game.currentTrick?.cards?.length > 0 && (
+                <TrickPanel
+                  title="Current trick"
+                  trick={game.currentTrick}
+                  playerNames={playerNames}
+                  mySeat={mySeat}
+                />
+              )}
+
+              {(game.phase === 'playing' || game.gameComplete) && game.lastTrick?.cards?.length > 0 && (
+                <TrickPanel
+                  title="Last trick"
+                  subtitle={`Trick ${game.completedTricks} of 13`}
+                  trick={game.lastTrick}
+                  playerNames={playerNames}
+                  winnerSeat={game.lastTrick.winner}
+                  mySeat={mySeat}
+                />
               )}
             </div>
 

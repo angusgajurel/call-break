@@ -95,6 +95,7 @@ export function createGameState(payouts = DEFAULT_PAYOUTS) {
     payouts: { ...payouts },
     completedTricks: 0,
     lastTrickWinner: null,
+    lastTrick: null,
     statusMessage: null,
     dealerCut: null,
   }
@@ -111,6 +112,7 @@ export function startRound(game) {
   game.completedTricks = 0
   game.phase = 'bidding'
   game.lastTrickWinner = null
+  game.lastTrick = null
 }
 
 export function prepareFirstRound(game) {
@@ -185,6 +187,10 @@ export function playCard(game, seat, cardId) {
     game.wonThisRound[winner] += 1
     game.completedTricks += 1
     game.lastTrickWinner = winner
+    game.lastTrick = {
+      cards: game.currentTrick.cards.map((play) => ({ ...play, card: { ...play.card } })),
+      winner,
+    }
     game.currentTrick = { cards: [] }
     game.trickLeader = winner
     game.currentTurn = winner
@@ -234,6 +240,15 @@ export function getPublicGameState(game, seat) {
     payouts: game.payouts,
     completedTricks: game.completedTricks,
     lastTrickWinner: game.lastTrickWinner,
+    lastTrick: game.lastTrick
+      ? {
+          winner: game.lastTrick.winner,
+          cards: game.lastTrick.cards.map((play) => ({
+            seat: play.seat,
+            card: { ...play.card },
+          })),
+        }
+      : null,
     hand: game.hands[seat] ? [...game.hands[seat]] : [],
     money,
     ranks,
