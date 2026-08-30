@@ -13,7 +13,7 @@ import {
   prepareFirstRound,
   submitCall,
 } from './gameLogic.js'
-import { fillEmptySeatsWithBots, runBots, stopBots, replaceBotWithHuman, convertSeatToBot } from './bots.js'
+import { fillEmptySeatsWithBots, runBots, stopBots, replaceBotWithHuman, convertSeatToBot, normalizePcNames } from './bots.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT) || 3001
@@ -91,6 +91,7 @@ function getBotPlayers(room) {
 }
 
 function publicRoomListItem(room) {
+  normalizePcNames(room)
   const host = room.players.find((player) => player.playerKey === room.hostPlayerKey)
   const bots = getBotPlayers(room)
   const humans = room.players.filter((player) => !player.isBot)
@@ -173,6 +174,7 @@ function queueBotTurn(room) {
 }
 
 function broadcastRoom(room) {
+  normalizePcNames(room)
   emitRoomState(room)
   broadcastRoomList()
   queueBotTurn(room)

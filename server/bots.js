@@ -2,16 +2,20 @@ import { getLegalCards, playCard, submitCall } from './gameLogic.js'
 
 const botTimers = new Map()
 
-function nextPcName(room) {
-  const pcCount = room.players.filter((player) => player.isBot).length
-  return `PC${pcCount + 1}`
+export function normalizePcNames(room) {
+  room.players
+    .filter((player) => player.isBot)
+    .sort((a, b) => a.seat - b.seat)
+    .forEach((bot, index) => {
+      bot.name = `PC${index + 1}`
+    })
 }
 
 export function createBotPlayer(room, seat) {
   return {
     id: `bot-${room.code}-${seat}`,
     playerKey: `bot-${room.code}-${seat}`,
-    name: nextPcName(room),
+    name: 'PC',
     seat,
     connected: true,
     isBot: true,
@@ -23,8 +27,8 @@ export function convertSeatToBot(room, player) {
   player.isBot = true
   player.id = `bot-${room.code}-${player.seat}`
   player.playerKey = `bot-${room.code}-${player.seat}`
-  player.name = nextPcName(room)
   player.connected = true
+  normalizePcNames(room)
 }
 
 export function replaceBotWithHuman(room, seat, { socketId, name, playerKey }) {
@@ -47,6 +51,7 @@ export function fillEmptySeatsWithBots(room) {
     }
   }
   room.players.sort((a, b) => a.seat - b.seat)
+  normalizePcNames(room)
 }
 
 function chooseBotCall(game, seat) {
