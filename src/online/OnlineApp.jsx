@@ -332,7 +332,10 @@ export default function OnlineApp({ onBack }) {
   }
 
   const startGame = () => socket.emit('start-game')
-  const submitCall = (call) => socket.emit('submit-call', { call })
+  const submitCall = (call) => {
+    if (call > 5 && !window.confirm(`You're bidding ${call}. Are you sure?`)) return
+    socket.emit('submit-call', { call })
+  }
   const playCard = (cardId) => socket.emit('play-card', { cardId })
   const leaveRoom = () => {
     socket.emit('leave-room', { playerKey })
