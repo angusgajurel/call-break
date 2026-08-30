@@ -95,9 +95,9 @@ function PlayerInputs({ entry, roundIndex, playerIndex, onUpdate }) {
         <input
           type="number"
           inputMode="numeric"
-          min={1}
-          max={8}
-          placeholder="1–8"
+          min={2}
+          max={13}
+          placeholder="2–13"
           value={entry.call}
           onChange={(e) => onUpdate(roundIndex, playerIndex, 'call', e.target.value)}
           className="mt-1 w-full rounded-lg border border-slate-300 px-2 py-2.5 text-center text-base text-slate-800 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-200"
@@ -378,7 +378,7 @@ export default function Scorekeeper({ onBack }) {
 
     if (rawValue !== '') {
       const value = Number(rawValue)
-      if (field === 'call' && (value < 1 || value > 8)) return
+      if (field === 'call' && (value < 2 || value > 13)) return
       if (field === 'won' && (value < 0 || value > 13)) return
     }
 

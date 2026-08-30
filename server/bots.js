@@ -31,7 +31,7 @@ function chooseBotCall(game, seat) {
   const spades = hand.filter((card) => card.s === 'S').length
   const highs = hand.filter((card) => card.r >= 11).length
   const estimate = Math.round(spades * 0.55 + highs * 0.45)
-  return Math.min(8, Math.max(1, estimate || 2))
+  return Math.min(13, Math.max(2, estimate || 2))
 }
 
 function wouldWinTrick(trick, seat, card) {
@@ -73,13 +73,12 @@ function fillBotCalls(room) {
   const game = room.game
   if (!game || game.phase !== 'bidding') return false
 
-  let filled = false
-  for (const player of room.players) {
-    if (!player.isBot || game.calls[player.seat] !== null) continue
-    submitCall(game, player.seat, chooseBotCall(game, player.seat))
-    filled = true
-  }
-  return filled
+  const seat = game.currentTurn
+  const player = room.players.find((entry) => entry.seat === seat)
+  if (!player?.isBot || game.calls[seat] !== null) return false
+
+  submitCall(game, seat, chooseBotCall(game, seat))
+  return true
 }
 
 export function runBots(room, onUpdate) {

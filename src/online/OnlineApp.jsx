@@ -608,6 +608,31 @@ export default function OnlineApp({ onBack }) {
                 <p className="text-sm text-slate-500">Dealer: {playerNames[game.dealer]}</p>
               </div>
 
+              {game.statusMessage && (
+                <p className="mt-2 rounded-lg bg-amber-100 px-3 py-2 text-sm text-amber-900">
+                  {game.statusMessage}
+                </p>
+              )}
+
+              {game.dealerCut?.length > 0 && game.round === 1 && (
+                <p className="mt-2 text-xs text-slate-500">
+                  Cut for dealer:{' '}
+                  {game.dealerCut.map((entry) => (
+                    <span key={entry.seat} className="mr-2">
+                      {playerNames[entry.seat]} {cardLabel(entry.card)}
+                    </span>
+                  ))}
+                </p>
+              )}
+
+              {game.phase === 'bidding' && (
+                <p className="mt-2 text-sm text-slate-600">
+                  Calling: <strong>{playerNames[game.currentTurn]}</strong>
+                  {game.currentTurn === mySeat ? ' (you)' : ''}
+                  <span className="ml-2 text-slate-400">· counter-clockwise from dealer&apos;s right</span>
+                </p>
+              )}
+
               {game.phase === 'playing' && (
                 <p className="mt-2 text-sm text-slate-600">
                   Turn: <strong>{playerNames[game.currentTurn]}</strong>
@@ -635,26 +660,47 @@ export default function OnlineApp({ onBack }) {
               <>
                 <HandDisplay hand={game.hand} phase={game.phase} />
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-                  <h3 className="font-semibold text-amber-900">Place your call (1–8)</h3>
-                  <p className="mt-1 text-sm text-amber-800">Look at your hand above, then pick your call.</p>
+                  <h3 className="font-semibold text-amber-900">
+                    Place your call ({game.minCall ?? 2}–{game.maxCall ?? 13})
+                  </h3>
+                  <p className="mt-1 text-sm text-amber-800">
+                    Calls go counter-clockwise and lock in after the next player speaks. Minimum
+                    call is 2. If all four calls total 9 or less, the hand is redealt.
+                  </p>
                   {game.calls[mySeat] !== null ? (
                     <p className="mt-2 text-sm text-amber-800">
-                      Your call: {game.calls[mySeat]}. Waiting for others…
+                      Your call: {game.calls[mySeat]}. Waiting for{' '}
+                      {playerNames[game.currentTurn]} to call…
                     </p>
-                  ) : (
-                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-8">
-                      {[1, 2, 3, 4, 5, 6, 7, 8].map((call) => (
-                        <button
-                          key={call}
-                          type="button"
-                          onClick={() => submitCall(call)}
-                          className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
-                        >
-                          {call}
-                        </button>
-                      ))}
+                  ) : game.currentTurn === mySeat ? (
+                    <div className="mt-3 grid grid-cols-4 gap-2 sm:grid-cols-6">
+                      {Array.from({ length: (game.maxCall ?? 13) - (game.minCall ?? 2) + 1 }, (_, i) => {
+                        const call = i + (game.minCall ?? 2)
+                        return (
+                          <button
+                            key={call}
+                            type="button"
+                            onClick={() => submitCall(call)}
+                            className="rounded-lg bg-white py-3 font-semibold shadow-sm hover:bg-emerald-50"
+                          >
+                            {call}
+                          </button>
+                        )
+                      })}
                     </div>
+                  ) : (
+                    <p className="mt-2 text-sm text-amber-800">
+                      Waiting for <strong>{playerNames[game.currentTurn]}</strong> to call…
+                    </p>
                   )}
+                  <div className="mt-4 space-y-1 border-t border-amber-200 pt-3 text-sm text-amber-900">
+                    {playerNames.map((player, index) => (
+                      <div key={player} className="flex justify-between">
+                        <span>{player}</span>
+                        <span>{game.calls[index] !== null ? `call ${game.calls[index]}` : '—'}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               </>
             )}

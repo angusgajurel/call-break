@@ -10,6 +10,7 @@ import {
   getPublicGameState,
   playCard,
   startRound,
+  prepareFirstRound,
   submitCall,
 } from './gameLogic.js'
 import { fillEmptySeatsWithBots, runBots, stopBots } from './bots.js'
@@ -326,7 +327,7 @@ io.on('connection', (socket) => {
     fillEmptySeatsWithBots(room)
     room.game = createGameState(room.pendingPayouts)
     room.status = 'playing'
-    startRound(room.game)
+    prepareFirstRound(room.game)
     broadcastRoom(room)
   })
 

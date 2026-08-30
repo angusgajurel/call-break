@@ -10,6 +10,10 @@ import { TRUMP, canPlayCard, getLegalCards, trickWinner } from '../shared/playRu
 const SUITS = ['C', 'D', 'H', 'S']
 const RANKS = [2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14]
 
+export const MIN_CALL = 2
+export const MAX_CALL = 13
+export const REDEAL_CALL_SUM_MAX = 9
+
 export { TRUMP, canPlayCard, getLegalCards, trickWinner }
 
 export function nextSeatCCW(seat) {
@@ -35,15 +39,36 @@ function shuffle(deck) {
   return copy
 }
 
-export function dealHands(deck) {
+export function dealHands(deck, dealer) {
   const hands = Array.from({ length: PLAYERS }, () => [])
+  let seat = nextSeatCCW(dealer)
   for (let i = 0; i < 52; i += 1) {
-    hands[i % PLAYERS].push(deck[i])
+    hands[seat].push(deck[i])
+    seat = nextSeatCCW(seat)
   }
   for (const hand of hands) {
     hand.sort((a, b) => a.s.localeCompare(b.s) || a.r - b.r)
   }
   return hands
+}
+
+export function cutForDealer(game) {
+  const deck = createDeck()
+  let dealer = 0
+  let bestRank = -1
+  const cutCards = []
+
+  for (let seat = 0; seat < PLAYERS; seat += 1) {
+    const card = deck[seat]
+    cutCards.push({ seat, card })
+    if (card.r > bestRank) {
+      bestRank = card.r
+      dealer = seat
+    }
+  }
+
+  game.dealer = dealer
+  game.dealerCut = cutCards
 }
 
 export function createRoomCode() {
@@ -70,12 +95,14 @@ export function createGameState(payouts = DEFAULT_PAYOUTS) {
     payouts: { ...payouts },
     completedTricks: 0,
     lastTrickWinner: null,
+    statusMessage: null,
+    dealerCut: null,
   }
 }
 
 export function startRound(game) {
   const deck = createDeck()
-  game.hands = dealHands(deck)
+  game.hands = dealHands(deck, game.dealer)
   game.calls = Array(PLAYERS).fill(null)
   game.wonThisRound = Array(PLAYERS).fill(0)
   game.currentTrick = { cards: [] }
@@ -86,21 +113,52 @@ export function startRound(game) {
   game.lastTrickWinner = null
 }
 
+export function prepareFirstRound(game) {
+  cutForDealer(game)
+  startRound(game)
+}
+
 export function allCallsSubmitted(game) {
   return game.calls.every((call) => call !== null)
+}
+
+export function callSum(game) {
+  return game.calls.reduce((sum, call) => sum + (call ?? 0), 0)
 }
 
 export function beginPlay(game) {
   game.phase = 'playing'
   game.currentTurn = game.trickLeader
+  game.statusMessage = null
+}
+
+function redealForLowCalls(game) {
+  startRound(game)
+  game.statusMessage = 'Total calls were 9 or less — hand redealt.'
 }
 
 export function submitCall(game, seat, call) {
   if (game.phase !== 'bidding') return { error: 'Not in bidding phase' }
-  if (game.calls[seat] !== null) return { error: 'Call already submitted' }
-  if (!Number.isInteger(call) || call < 1 || call > 8) return { error: 'Call must be 1–8' }
+  if (game.currentTurn !== seat) return { error: 'Not your turn to call' }
+  if (game.calls[seat] !== null) return { error: 'Call already locked in' }
+  if (!Number.isInteger(call) || call < MIN_CALL || call > MAX_CALL) {
+    return { error: `Call must be ${MIN_CALL}–${MAX_CALL}` }
+  }
+
   game.calls[seat] = call
-  if (allCallsSubmitted(game)) beginPlay(game)
+  game.statusMessage = null
+
+  if (!allCallsSubmitted(game)) {
+    game.currentTurn = nextSeatCCW(game.currentTurn)
+    return { ok: true }
+  }
+
+  if (callSum(game) <= REDEAL_CALL_SUM_MAX) {
+    redealForLowCalls(game)
+    return { ok: true, redeal: true }
+  }
+
+  beginPlay(game)
   return { ok: true }
 }
 
@@ -148,6 +206,7 @@ function finishRound(game) {
 
   game.round += 1
   game.dealer = nextSeatCCW(game.dealer)
+  game.dealerCut = null
   startRound(game)
 }
 
@@ -160,7 +219,7 @@ export function getPublicGameState(game, seat) {
     dealer: game.dealer,
     phase: game.phase,
     calls: game.calls.map((call) => (call !== null ? call : null)),
-    callsRevealed: game.phase !== 'bidding',
+    callsRevealed: true,
     wonThisRound: [...game.wonThisRound],
     totals: [...game.totals],
     currentTrick: game.currentTrick,
@@ -175,6 +234,11 @@ export function getPublicGameState(game, seat) {
     tied,
     gameComplete,
     playDirection: 'ccw',
+    minCall: MIN_CALL,
+    maxCall: MAX_CALL,
+    callSum: allCallsSubmitted(game) ? callSum(game) : null,
+    statusMessage: game.statusMessage,
+    dealerCut: game.dealerCut,
   }
 }
 
