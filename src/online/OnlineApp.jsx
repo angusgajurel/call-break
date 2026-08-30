@@ -974,38 +974,88 @@ export default function OnlineApp({ onBack }) {
             </div>
 
             <div className="rounded-2xl border border-emerald-900 bg-emerald-950 p-4 text-white">
-              <h3 className="mb-2 text-sm font-semibold uppercase tracking-wide text-emerald-200">
+              <h3 className="mb-3 text-sm font-semibold uppercase tracking-wide text-emerald-200">
                 Scores
               </h3>
-              <div className="space-y-2">
-                {playerNames.map((player, index) => (
-                  <div
-                    key={index}
-                    className="flex items-center justify-between rounded-lg bg-emerald-900/60 px-3 py-2 text-sm"
-                  >
-                    <span>
-                      {player}
-                      {game.ranks[index]
-                        ? ` · ${rankLabel(game.ranks[index], game.tied[index])}`
-                        : ''}
-                    </span>
-                    <span>
-                      {formatScore(game.totals[index])} pts
-                      {game.callsRevealed && game.calls[index] !== null && (
-                        <span className="ml-2 text-emerald-300">
-                          call {game.calls[index]} · won {game.wonThisRound[index]}
+
+              {game.lastRoundScores && (
+                <div className="mb-3 rounded-lg border border-emerald-800/80 bg-emerald-900/40 p-3">
+                  <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
+                    Last round {game.lastRoundNumber ? `(${game.lastRoundNumber})` : ''}
+                  </p>
+                  <div className="space-y-1.5">
+                    {playerNames.map((player, index) => (
+                      <div
+                        key={`last-${index}`}
+                        className="flex items-center justify-between text-sm text-emerald-100"
+                      >
+                        <span>{player}</span>
+                        <span className="font-semibold text-emerald-200">
+                          {formatScore(game.lastRoundScores[index])} pts
                         </span>
-                      )}
-                      {game.gameComplete && (
-                        <span
-                          className={`ml-2 ${game.money[index] >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
-                        >
-                          {formatMoney(game.money[index])}
-                        </span>
-                      )}
-                    </span>
+                      </div>
+                    ))}
                   </div>
-                ))}
+                </div>
+              )}
+
+              <div className="mb-3 rounded-lg border border-emerald-800/80 bg-emerald-900/40 p-3">
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
+                  Round {game.round}
+                  {game.phase === 'bidding'
+                    ? ' · bidding'
+                    : game.phase === 'playing'
+                      ? ' · playing'
+                      : game.gameComplete
+                        ? ' · finished'
+                        : ''}
+                </p>
+                <div className="space-y-1.5">
+                  {playerNames.map((player, index) => (
+                    <div
+                      key={`round-${index}`}
+                      className="flex items-center justify-between text-sm text-emerald-100"
+                    >
+                      <span>{player}</span>
+                      <span className="text-emerald-300">
+                        {game.calls[index] !== null
+                          ? `call ${game.calls[index]} · won ${game.wonThisRound[index]}`
+                          : '—'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-emerald-300/90">
+                  Total
+                </p>
+                <div className="space-y-2">
+                  {playerNames.map((player, index) => (
+                    <div
+                      key={index}
+                      className="flex items-center justify-between rounded-lg bg-emerald-900/60 px-3 py-2 text-sm"
+                    >
+                      <span>
+                        {player}
+                        {game.ranks[index]
+                          ? ` · ${rankLabel(game.ranks[index], game.tied[index])}`
+                          : ''}
+                      </span>
+                      <span className="font-semibold">
+                        {formatScore(game.totals[index])} pts
+                        {game.gameComplete && (
+                          <span
+                            className={`ml-2 font-normal ${game.money[index] >= 0 ? 'text-emerald-300' : 'text-red-300'}`}
+                          >
+                            {formatMoney(game.money[index])}
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
           </div>

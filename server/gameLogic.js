@@ -89,6 +89,8 @@ export function createGameState(payouts = DEFAULT_PAYOUTS) {
     calls: Array(PLAYERS).fill(null),
     wonThisRound: Array(PLAYERS).fill(0),
     totals: Array(PLAYERS).fill(0),
+    lastRoundScores: null,
+    lastRoundNumber: null,
     currentTrick: { cards: [] },
     trickLeader: 0,
     currentTurn: 0,
@@ -206,10 +208,14 @@ export function playCard(game, seat, cardId) {
 }
 
 function finishRound(game) {
+  const roundScores = Array(PLAYERS).fill(0)
   for (let seat = 0; seat < PLAYERS; seat += 1) {
-    const roundScore = calculateRoundScore(game.calls[seat], game.wonThisRound[seat])
-    game.totals[seat] += roundScore
+    roundScores[seat] = calculateRoundScore(game.calls[seat], game.wonThisRound[seat])
+    game.totals[seat] += roundScores[seat]
   }
+
+  game.lastRoundScores = roundScores
+  game.lastRoundNumber = game.round
 
   if (game.round >= ROUNDS) {
     game.phase = 'finished'
@@ -234,6 +240,8 @@ export function getPublicGameState(game, seat) {
     callsRevealed: true,
     wonThisRound: [...game.wonThisRound],
     totals: [...game.totals],
+    lastRoundScores: game.lastRoundScores ? [...game.lastRoundScores] : null,
+    lastRoundNumber: game.lastRoundNumber,
     currentTrick: game.currentTrick,
     trickLeader: game.trickLeader,
     currentTurn: game.currentTurn,
