@@ -14,6 +14,28 @@ export function createBotPlayer(room, seat, botIndex) {
   }
 }
 
+export function convertSeatToBot(room, player) {
+  if (!player || player.isBot) return
+  const botIndex = player.seat % BOT_NAMES.length
+  player.isBot = true
+  player.id = `bot-${room.code}-${player.seat}`
+  player.playerKey = `bot-${room.code}-${player.seat}`
+  player.name = BOT_NAMES[botIndex] ?? `PC ${player.seat + 1}`
+  player.connected = true
+}
+
+export function replaceBotWithHuman(room, seat, { socketId, name, playerKey }) {
+  const bot = room.players.find((player) => player.seat === seat && player.isBot)
+  if (!bot) return { error: 'No PC at that seat' }
+
+  bot.id = socketId
+  bot.playerKey = playerKey
+  bot.name = name?.trim() || bot.name
+  bot.connected = true
+  bot.isBot = false
+  return { ok: true, seat }
+}
+
 export function fillEmptySeatsWithBots(room) {
   const usedSeats = new Set(room.players.map((player) => player.seat))
   let botIndex = 0

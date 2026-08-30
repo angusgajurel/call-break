@@ -13,7 +13,7 @@ import {
   prepareFirstRound,
   submitCall,
 } from './gameLogic.js'
-import { fillEmptySeatsWithBots, runBots, stopBots } from './bots.js'
+import { fillEmptySeatsWithBots, runBots, stopBots, replaceBotWithHuman, convertSeatToBot } from './bots.js'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const PORT = Number(process.env.PORT) || 3001
@@ -86,8 +86,16 @@ function removePlayerFromRoom(room, playerKey) {
   }
 }
 
+function getBotPlayers(room) {
+  return room.players.filter((player) => player.isBot)
+}
+
 function publicRoomListItem(room) {
   const host = room.players.find((player) => player.playerKey === room.hostPlayerKey)
+  const bots = getBotPlayers(room)
+  const humans = room.players.filter((player) => !player.isBot)
+  const inProgress = room.status === 'playing'
+
   return {
     code: room.code,
     hostName: host?.name ?? 'Host',
@@ -98,23 +106,34 @@ function publicRoomListItem(room) {
         name: player.name,
         connected: player.connected,
         seat: player.seat,
+        isBot: Boolean(player.isBot),
       })),
-    playerCount: room.players.length,
-    openSeats: 4 - room.players.length,
-    payouts: room.pendingPayouts ?? room.game?.payouts ?? null,
+    playerCount: humans.length,
+    openSeats: inProgress ? bots.length : 4 - room.players.length,
+    replaceableSeats: bots.map((player) => ({ seat: player.seat, name: player.name })),
+    inProgress,
+    round: room.game?.round ?? null,
+    payouts: room.game?.payouts ?? room.pendingPayouts ?? null,
   }
 }
 
 function getJoinableRooms() {
   return [...rooms.values()]
-    .filter(
-      (room) =>
-        room.status === 'lobby' &&
-        room.players.length < 4 &&
-        room.players.some((player) => player.connected),
-    )
+    .filter((room) => {
+      if (room.status === 'finished') return false
+      if (room.status === 'lobby') {
+        return room.players.length < 4 && room.players.some((player) => player.connected)
+      }
+      if (room.status === 'playing') {
+        return (
+          getBotPlayers(room).length > 0 &&
+          room.players.some((player) => !player.isBot && player.connected)
+        )
+      }
+      return false
+    })
     .map(publicRoomListItem)
-    .sort((a, b) => b.playerCount - a.playerCount || a.code.localeCompare(b.code))
+    .sort((a, b) => Number(b.inProgress) - Number(a.inProgress) || b.playerCount - a.playerCount || a.code.localeCompare(b.code))
 }
 
 function broadcastRoomList() {
@@ -219,7 +238,7 @@ io.on('connection', (socket) => {
     broadcastRoom(room)
   })
 
-  socket.on('join-room', ({ code, name, playerKey }) => {
+  socket.on('join-room', ({ code, name, playerKey, replaceSeat }) => {
     const room = getRoom(code)
     if (!room) {
       socket.emit('error-msg', 'Room not found')
@@ -232,6 +251,43 @@ io.on('connection', (socket) => {
       if (name?.trim()) existing.name = name.trim()
       attachSocketToPlayer(room, existing, socket)
       joinedCode = room.code
+      broadcastRoom(room)
+      return
+    }
+
+    if (room.status === 'playing') {
+      const bots = getBotPlayers(room)
+      if (bots.length === 0) {
+        socket.emit('error-msg', 'No PC seats available in this game')
+        return
+      }
+
+      let seat = replaceSeat
+      if (seat === undefined || seat === null) {
+        if (bots.length === 1) {
+          seat = bots[0].seat
+        } else {
+          socket.emit('choose-pc-seat', {
+            code: room.code,
+            seats: bots.map((player) => ({ seat: player.seat, name: player.name })),
+          })
+          return
+        }
+      }
+
+      const result = replaceBotWithHuman(room, Number(seat), {
+        socketId: socket.id,
+        name,
+        playerKey: key,
+      })
+      if (result.error) {
+        socket.emit('error-msg', result.error)
+        return
+      }
+
+      stopBots(room.code)
+      joinedCode = room.code
+      socket.join(room.code)
       broadcastRoom(room)
       return
     }
@@ -263,7 +319,7 @@ io.on('connection', (socket) => {
     broadcastRoom(room)
   })
 
-  socket.on('rejoin-room', ({ code, name, playerKey }) => {
+  socket.on('rejoin-room', ({ code, name, playerKey, replaceSeat }) => {
     if (!code || !playerKey) {
       socket.emit('session-expired', 'Missing session')
       return
@@ -285,7 +341,31 @@ io.on('connection', (socket) => {
     }
 
     if (room.status !== 'lobby') {
-      socket.emit('session-expired', 'You were removed from this game')
+      const bots = getBotPlayers(room)
+      if (bots.length === 0) {
+        socket.emit('session-expired', 'You were removed from this game')
+        return
+      }
+      if (replaceSeat === undefined || replaceSeat === null) {
+        socket.emit('choose-pc-seat', {
+          code: room.code,
+          seats: bots.map((player) => ({ seat: player.seat, name: player.name })),
+        })
+        return
+      }
+      const result = replaceBotWithHuman(room, Number(replaceSeat), {
+        socketId: socket.id,
+        name,
+        playerKey,
+      })
+      if (result.error) {
+        socket.emit('error-msg', result.error)
+        return
+      }
+      stopBots(room.code)
+      joinedCode = room.code
+      socket.join(room.code)
+      broadcastRoom(room)
       return
     }
     if (room.players.length >= 4) {
@@ -367,6 +447,21 @@ io.on('connection', (socket) => {
     notifyVoicePeerLeft(room, socket.id)
     const me = findPlayerBySocket(room, socket.id)
     const key = playerKey || me?.playerKey
+    if (!key) return
+
+    if (room.status === 'playing' && room.game?.phase !== 'finished') {
+      const leaving = me || findPlayerByKey(room, key)
+      if (leaving && !leaving.isBot) {
+        convertSeatToBot(room, leaving)
+        stopBots(room.code)
+        socket.leave(room.code)
+        joinedCode = null
+        broadcastRoom(room)
+        socket.emit('left-room')
+        return
+      }
+    }
+
     if (key) removePlayerFromRoom(room, key)
     socket.leave(room.code)
     joinedCode = null

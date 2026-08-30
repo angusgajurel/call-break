@@ -93,6 +93,7 @@ export default function OnlineApp({ onBack }) {
   const [connecting, setConnecting] = useState(true)
   const [reconnecting, setReconnecting] = useState(Boolean(savedSession?.roomCode))
   const [availableRooms, setAvailableRooms] = useState([])
+  const [pcSeatOffer, setPcSeatOffer] = useState(null)
 
   const inRoom = Boolean(room?.code)
   const { micOn, voiceError, remoteStreams, toggleMic } = useVoiceChat(socket, room?.code, inRoom)
@@ -146,6 +147,7 @@ export default function OnlineApp({ onBack }) {
       setYou(payload.you)
       setError('')
       setReconnecting(false)
+      setPcSeatOffer(null)
       if (payload.room) {
         setScreen('room')
         const myPlayer = payload.room.players.find((p) => p.playerKey === payload.you?.playerKey)
@@ -180,6 +182,11 @@ export default function OnlineApp({ onBack }) {
       setYou(null)
       setScreen('menu')
       socket.emit('list-rooms')
+    })
+
+    socket.on('choose-pc-seat', (offer) => {
+      setPcSeatOffer(offer)
+      setError('')
     })
 
     const onRoomList = (rooms) => setAvailableRooms(rooms)
@@ -239,17 +246,28 @@ export default function OnlineApp({ onBack }) {
     socket.emit('create-room', { name: name.trim(), payouts, playerKey })
   }
 
-  const joinRoomByCode = (code) => {
+  const joinRoomByCode = (code, replaceSeat = null) => {
     if (!name.trim()) {
       setError('Enter your name first')
       return
     }
     if (!requireConnection()) return
     setError('')
+    setPcSeatOffer(null)
     const normalized = code.trim().toUpperCase()
     setRoomCode(normalized)
     saveSession({ name: name.trim(), roomCode: normalized, playerKey })
-    socket.emit('join-room', { code: normalized, name: name.trim(), playerKey })
+    socket.emit('join-room', {
+      code: normalized,
+      name: name.trim(),
+      playerKey,
+      replaceSeat,
+    })
+  }
+
+  const replacePcSeat = (seat) => {
+    if (!pcSeatOffer?.code) return
+    joinRoomByCode(pcSeatOffer.code, seat)
   }
 
   const joinRoom = () => {
@@ -352,7 +370,8 @@ export default function OnlineApp({ onBack }) {
           <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-xl">
             <h1 className="text-2xl font-bold text-emerald-900">Play Online</h1>
             <p className="mt-2 text-sm text-slate-600">
-              Create a room or join an open game below — no code needed.
+              Create a room, join an open lobby, or take over a PC seat in a game already in
+              progress.
             </p>
             {connectionBanner}
 
@@ -431,13 +450,43 @@ export default function OnlineApp({ onBack }) {
                 </button>
               </div>
 
+              {pcSeatOffer && (
+                <div className="mb-4 rounded-xl border border-amber-300 bg-amber-50 p-4">
+                  <h3 className="font-semibold text-amber-950">Take over a PC seat</h3>
+                  <p className="mt-1 text-sm text-amber-900">
+                    Game <span className="font-mono font-bold">{pcSeatOffer.code}</span> is in
+                    progress. Choose which PC to replace:
+                  </p>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {pcSeatOffer.seats.map((seat) => (
+                      <button
+                        key={seat.seat}
+                        type="button"
+                        onClick={() => replacePcSeat(seat.seat)}
+                        className="rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+                      >
+                        Replace {seat.name}
+                      </button>
+                    ))}
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setPcSeatOffer(null)}
+                    className="mt-3 text-sm text-amber-800 underline"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              )}
+
               {!connected ? (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
                   Connect to see open rooms.
                 </p>
               ) : availableRooms.length === 0 ? (
                 <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-500">
-                  No open rooms right now. Create one and friends can join from here.
+                  No open rooms right now. Create one or join a game in progress when a PC seat is
+                  open.
                 </p>
               ) : (
                 <ul className="space-y-3">
@@ -450,10 +499,16 @@ export default function OnlineApp({ onBack }) {
                         <div className="min-w-0">
                           <p className="font-semibold text-slate-800">
                             {openRoom.hostName}&apos;s room
+                            {openRoom.inProgress ? (
+                              <span className="ml-2 rounded-full bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-900">
+                                Round {openRoom.round}
+                              </span>
+                            ) : null}
                           </p>
                           <p className="mt-1 text-xs text-slate-500">
-                            {openRoom.playerCount}/4 players · {openRoom.openSeats} seat
-                            {openRoom.openSeats === 1 ? '' : 's'} open
+                            {openRoom.inProgress
+                              ? `${openRoom.playerCount} human${openRoom.playerCount === 1 ? '' : 's'} · ${openRoom.openSeats} PC seat${openRoom.openSeats === 1 ? '' : 's'}`
+                              : `${openRoom.playerCount}/4 players · ${openRoom.openSeats} seat${openRoom.openSeats === 1 ? '' : 's'} open`}
                             {openRoom.payouts
                               ? ` · 2nd/${openRoom.payouts.second} 3rd/${openRoom.payouts.third} 4th/${openRoom.payouts.fourth}`
                               : ''}
@@ -465,7 +520,7 @@ export default function OnlineApp({ onBack }) {
                           disabled={!connected || connecting}
                           className="shrink-0 rounded-lg bg-emerald-700 px-3 py-2 text-sm font-semibold text-white hover:bg-emerald-600 disabled:bg-slate-300"
                         >
-                          Join
+                          {openRoom.inProgress ? 'Take PC seat' : 'Join'}
                         </button>
                       </div>
                       <div className="mt-3 flex flex-wrap gap-2">
@@ -473,17 +528,32 @@ export default function OnlineApp({ onBack }) {
                           <span
                             key={`${openRoom.code}-${player.seat}`}
                             className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                              player.connected
-                                ? 'bg-emerald-100 text-emerald-800'
-                                : 'bg-slate-200 text-slate-600'
+                              player.isBot
+                                ? 'bg-violet-100 text-violet-800'
+                                : player.connected
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : 'bg-slate-200 text-slate-600'
                             }`}
                           >
                             {player.name}
-                            {player.seat === 0 ? ' · host' : ''}
-                            {!player.connected ? ' · offline' : ''}
+                            {player.isBot ? ' · PC' : !player.connected ? ' · offline' : ''}
                           </span>
                         ))}
                       </div>
+                      {openRoom.inProgress && openRoom.replaceableSeats?.length > 1 && (
+                        <div className="mt-3 flex flex-wrap gap-2 border-t border-slate-200 pt-3">
+                          {openRoom.replaceableSeats.map((seat) => (
+                            <button
+                              key={`${openRoom.code}-seat-${seat.seat}`}
+                              type="button"
+                              onClick={() => joinRoomByCode(openRoom.code, seat.seat)}
+                              className="rounded-lg border border-violet-300 bg-white px-2.5 py-1.5 text-xs font-medium text-violet-900 hover:bg-violet-50"
+                            >
+                              Replace {seat.name}
+                            </button>
+                          ))}
+                        </div>
+                      )}
                     </li>
                   ))}
                 </ul>
