@@ -15,7 +15,7 @@ fi
 
 OWNER_ID="tea-da9lj4ijnfac73e7msm0"
 REPO_NAME="call-break"
-BRANCH="cursor/nepali-call-break-scorekeeper-abdd"
+BRANCH="main"
 
 if ! gh repo view "$REPO_NAME" >/dev/null 2>&1; then
   gh repo create "$REPO_NAME" --public --source=. --remote=origin --push

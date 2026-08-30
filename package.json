@@ -11,7 +11,7 @@
     "start": "node server/index.js",
     "start:server": "node server/index.js",
     "deploy": "npm run build && npx -y @shipstatic/ship ./dist --json",
-    "deploy:full": "npm run build && echo 'Deploy dist + server/index.js to Render/Fly for online play'",
+    "deploy:render": "./scripts/trigger-render-deploy.sh",
     "lint": "oxlint",
     "preview": "vite preview"
   },
