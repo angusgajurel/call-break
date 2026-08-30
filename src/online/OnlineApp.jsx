@@ -52,14 +52,37 @@ function suitLabel(suit) {
   return labels[suit] || suit
 }
 
-function PlayingCard({ card, large = false, winning = false }) {
+function TrickChips({ trick, playerNames, mySeat, winnerSeat }) {
+  if (!trick?.cards?.length) return null
+
   return (
-    <div
-      className={`flex flex-col items-center justify-center rounded-xl border-2 bg-white font-bold shadow-sm ${
-        large ? 'min-h-[4.5rem] min-w-[3.5rem] text-2xl' : 'min-h-[3.5rem] min-w-[2.75rem] text-lg'
-      } ${winning ? 'border-amber-400 shadow-lg shadow-amber-200/80' : 'border-slate-200'} ${suitColor(card.s)}`}
-    >
-      {cardLabel(card)}
+    <div className="flex flex-wrap gap-2">
+      {trick.cards.map((play, index) => {
+        const isWinner = winnerSeat !== undefined && winnerSeat !== null && play.seat === winnerSeat
+
+        return (
+          <div
+            key={`${play.seat}-${play.card.id}`}
+            className={`flex items-center gap-2 rounded-lg border px-2 py-1.5 text-sm ${
+              isWinner ? 'border-amber-300 bg-amber-50' : 'border-emerald-100 bg-white'
+            }`}
+          >
+            <span className="text-[10px] font-semibold text-slate-400">{index + 1}</span>
+            <span
+              className={
+                play.seat === mySeat
+                  ? 'font-semibold text-emerald-800'
+                  : isWinner
+                    ? 'font-semibold text-amber-900'
+                    : 'text-slate-600'
+              }
+            >
+              {playerNames[play.seat]}
+            </span>
+            <span className={`font-semibold ${suitColor(play.card.s)}`}>{cardLabel(play.card)}</span>
+          </div>
+        )
+      })}
     </div>
   )
 }
@@ -70,20 +93,7 @@ function CurrentTrickPanel({ trick, playerNames, mySeat }) {
   return (
     <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50/80 p-3">
       <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">Current trick</p>
-      <div className="flex flex-wrap gap-2">
-        {trick.cards.map((play, index) => (
-          <div
-            key={`${play.seat}-${play.card.id}`}
-            className="flex items-center gap-2 rounded-lg border border-emerald-100 bg-white px-2 py-1.5 text-sm"
-          >
-            <span className="text-[10px] font-semibold text-slate-400">{index + 1}</span>
-            <span className={play.seat === mySeat ? 'font-semibold text-emerald-800' : 'text-slate-600'}>
-              {playerNames[play.seat]}
-            </span>
-            <span className={`font-semibold ${suitColor(play.card.s)}`}>{cardLabel(play.card)}</span>
-          </div>
-        ))}
-      </div>
+      <TrickChips trick={trick} playerNames={playerNames} mySeat={mySeat} />
     </div>
   )
 }
@@ -94,58 +104,18 @@ function LastTrickPanel({ trick, playerNames, mySeat, trickNumber }) {
   const leadSuit = trick.cards[0]?.card.s
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-emerald-900/20 bg-gradient-to-br from-emerald-950 via-emerald-900 to-emerald-950 text-white shadow-lg">
-      <div className="border-b border-white/10 px-4 py-3">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.2em] text-emerald-300/90">
-          Last trick
-        </p>
-        <p className="text-sm text-emerald-100/80">
-          Trick {trickNumber} of 13
-          {leadSuit ? ` · led ${suitLabel(leadSuit)}` : ''}
-        </p>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-4">
-        {trick.cards.map((play, index) => {
-          const isWinner = play.seat === trick.winner
-          const isMe = play.seat === mySeat
-
-          return (
-            <div
-              key={`${play.seat}-${play.card.id}`}
-              className={`relative flex flex-col items-center rounded-xl border px-2 py-3 text-center ${
-                isWinner
-                  ? 'border-amber-300/60 bg-amber-400/15 ring-1 ring-amber-300/40'
-                  : 'border-white/10 bg-white/5'
-              }`}
-            >
-              <span className="absolute left-2 top-2 text-[10px] font-semibold text-emerald-300/70">
-                {index + 1}
-              </span>
-              {index === 0 && (
-                <span className="absolute right-2 top-2 rounded bg-white/10 px-1.5 py-0.5 text-[9px] font-semibold uppercase text-emerald-200">
-                  Lead
-                </span>
-              )}
-              <p
-                className={`mb-2 mt-3 max-w-full truncate text-xs font-medium ${
-                  isMe ? 'text-emerald-300' : 'text-emerald-100/80'
-                }`}
-              >
-                {playerNames[play.seat]}
-                {isMe ? ' · you' : ''}
-              </p>
-              <PlayingCard card={play.card} winning={isWinner} />
-              {isWinner && (
-                <p className="mt-2 text-[10px] font-bold uppercase tracking-wide text-amber-300">
-                  Winning card
-                </p>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </section>
+    <div className="rounded-xl border border-emerald-200 bg-emerald-50/80 p-3">
+      <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-800">
+        Last trick · {trickNumber}/13
+        {leadSuit ? ` · led ${suitLabel(leadSuit)}` : ''}
+      </p>
+      <TrickChips
+        trick={trick}
+        playerNames={playerNames}
+        mySeat={mySeat}
+        winnerSeat={trick.winner}
+      />
+    </div>
   )
 }
 
