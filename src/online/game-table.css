@@ -109,6 +109,7 @@
   max-height: min(62vh, 22rem);
   aspect-ratio: 2.35 / 1;
   min-height: 10.5rem;
+  overflow: visible;
   border-radius: 50%;
   border: 3px solid rgb(212 177 90 / 0.35);
   box-shadow:
@@ -122,30 +123,61 @@
 
 .opponent-seat {
   position: absolute;
+  z-index: 8;
+  text-align: center;
+}
+
+.opponent-seat-left {
+  left: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  max-width: 11rem;
+}
+
+.opponent-seat-top {
+  top: 0.15rem;
+  left: 50%;
+  transform: translateX(-50%);
+  width: auto;
+  max-width: 14rem;
+}
+
+.opponent-seat-right {
+  right: 0.25rem;
+  top: 50%;
+  transform: translateY(-50%);
+  width: auto;
+  max-width: 11rem;
+}
+
+.opponent-seat-layout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.opponent-seat-layout-horizontal {
+  flex-direction: row;
+  align-items: center;
+}
+
+.opponent-seat-left .opponent-seat-layout-horizontal {
+  flex-direction: row;
+}
+
+.opponent-seat-right .opponent-seat-layout-horizontal {
+  flex-direction: row-reverse;
+}
+
+.opponent-seat-profile {
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 0.35rem;
   width: 5.5rem;
-  text-align: center;
-}
-
-.opponent-seat-left {
-  left: -0.25rem;
-  top: 50%;
-  transform: translate(-15%, -50%);
-}
-
-.opponent-seat-top {
-  top: -0.25rem;
-  left: 50%;
-  transform: translate(-50%, -20%);
-}
-
-.opponent-seat-right {
-  right: -0.25rem;
-  top: 50%;
-  transform: translate(15%, -50%);
+  flex-shrink: 0;
 }
 
 .opponent-avatar {
@@ -545,48 +577,17 @@
   font-size: 0.68rem;
 }
 
-.last-trick-cards .playing-card--mini {
-  width: 2.1rem;
-  height: 2.95rem;
-  font-size: 0.5rem;
+.last-trick-cards .playing-card--mini,
+.won-trick-cards .playing-card--mini {
+  width: 2.35rem;
+  height: 3.3rem;
+  font-size: 0.52rem;
 }
 
-.won-trick {
-  position: absolute;
-  z-index: 6;
-  pointer-events: none;
-}
-
-.won-trick-left {
-  left: 7%;
-  top: 50%;
-  --from-x: 2.75rem;
-  --from-y: 0;
-  transform: translateY(-50%);
-}
-
-.won-trick-top {
-  top: 10%;
-  left: 50%;
-  --from-x: 0;
-  --from-y: 2rem;
-  transform: translateX(-50%);
-}
-
-.won-trick-right {
-  right: 7%;
-  top: 50%;
-  --from-x: -2.75rem;
-  --from-y: 0;
-  transform: translateY(-50%);
-}
-
-.won-trick-bottom {
-  bottom: 10%;
-  left: 50%;
-  --from-x: 0;
-  --from-y: -2rem;
-  transform: translateX(-50%);
+.self-won-trick {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 0.35rem;
 }
 
 .won-trick-cards {
@@ -594,24 +595,47 @@
   gap: 0.2rem;
   padding: 0.3rem 0.4rem;
   border-radius: 0.55rem;
-  border: 1px solid rgb(212 177 90 / 0.3);
-  background: rgb(0 0 0 / 0.42);
+  border: 1px solid rgb(212 177 90 / 0.35);
+  background: rgb(0 0 0 / 0.48);
   box-shadow:
     0 8px 20px rgb(0 0 0 / 0.35),
     inset 0 1px 0 rgb(255 255 255 / 0.06);
 }
 
-.won-trick-left .won-trick-cards,
-.won-trick-right .won-trick-cards {
+.won-trick-cards-left,
+.won-trick-cards-right {
+  --from-x: 0;
+  --from-y: 0;
   flex-direction: column;
 }
 
-.won-trick-top .won-trick-cards,
-.won-trick-bottom .won-trick-cards {
+.won-trick-cards-left {
+  --from-x: 1.4rem;
+}
+
+.won-trick-cards-right {
+  --from-x: -1.4rem;
+}
+
+.won-trick-cards-top,
+.won-trick-cards-bottom {
   flex-direction: row;
 }
 
+.won-trick-cards-top {
+  --from-x: 0;
+  --from-y: 1.1rem;
+}
+
+.won-trick-cards-bottom {
+  --from-x: 0;
+  --from-y: -1.1rem;
+}
+
 .won-trick-card {
+  flex-shrink: 0;
+  width: 2.35rem;
+  height: 3.3rem;
   animation: won-trick-card-in 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 

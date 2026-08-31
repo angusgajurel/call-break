@@ -95,59 +95,68 @@ function BidModal({ game, playerNames, mySeat, onSubmitCall }) {
   )
 }
 
-function WonTrickDisplay({ lastTrick, mySeat, trickNumber }) {
-  if (!lastTrick?.cards?.length || lastTrick.winner === undefined || lastTrick.winner === null) {
-    return null
-  }
-
-  const winnerSide = seatPosition(lastTrick.winner, mySeat)
+function WonTrickCards({ lastTrick, side, trickNumber }) {
+  if (!lastTrick?.cards?.length) return null
 
   return (
     <div
-      className={`won-trick won-trick-${winnerSide}`}
+      className={`won-trick-cards won-trick-cards-${side}`}
       key={`won-trick-${trickNumber}`}
-      aria-label={`Trick won by seat ${lastTrick.winner + 1}`}
+      aria-hidden
     >
-      <div className="won-trick-cards">
-        {lastTrick.cards.map((play, index) => (
-          <div
-            key={`${play.seat}-${play.card.id}`}
-            className={`won-trick-card ${play.seat === lastTrick.winner ? 'won-trick-card-winner' : ''}`}
-            style={{ animationDelay: `${index * 0.09}s` }}
-          >
-            <PlayingCardFace card={play.card} className="playing-card--mini" />
-          </div>
-        ))}
-      </div>
+      {lastTrick.cards.map((play, index) => (
+        <div
+          key={`${play.seat}-${play.card.id}`}
+          className={`won-trick-card ${play.seat === lastTrick.winner ? 'won-trick-card-winner' : ''}`}
+          style={{ animationDelay: `${index * 0.09}s` }}
+        >
+          <PlayingCardFace card={play.card} className="playing-card--mini" />
+        </div>
+      ))}
     </div>
   )
 }
 
-function OpponentSeat({ seat, game, playerNames, mySeat, position }) {
+function OpponentSeat({ seat, game, playerNames, mySeat, position, lastTrick, trickNumber }) {
   const name = playerNames[seat]
   const won = game.wonThisRound[seat] ?? 0
   const call = game.calls[seat]
   const isActive = game.currentTurn === seat
   const isDealer = game.dealer === seat
+  const showWonTrick =
+    lastTrick?.winner === seat && lastTrick?.cards?.length > 0 && game.phase === 'playing'
   const posClass = `opponent-seat opponent-seat-${position}`
+  const isHorizontal = position === 'left' || position === 'right'
 
   return (
     <div className={posClass}>
-      <div
-        className={`opponent-avatar ${isActive ? 'opponent-avatar-active' : ''} ${isDealer ? 'opponent-avatar-dealer' : ''}`}
-        title={name}
-      >
-        {initials(name)}
+      <div className={`opponent-seat-layout ${isHorizontal ? 'opponent-seat-layout-horizontal' : ''}`}>
+        {showWonTrick && position === 'right' && (
+          <WonTrickCards lastTrick={lastTrick} side={position} trickNumber={trickNumber} />
+        )}
+
+        <div className="opponent-seat-profile">
+          <div
+            className={`opponent-avatar ${isActive ? 'opponent-avatar-active' : ''} ${isDealer ? 'opponent-avatar-dealer' : ''}`}
+            title={name}
+          >
+            {initials(name)}
+          </div>
+          <div className="opponent-cards-back" aria-hidden>
+            <span />
+            <span />
+            <span />
+          </div>
+          <p className="opponent-score">
+            {won}/{call !== null ? call : '—'}
+          </p>
+          <p className="opponent-name">{name}</p>
+        </div>
+
+        {showWonTrick && position !== 'right' && (
+          <WonTrickCards lastTrick={lastTrick} side={position} trickNumber={trickNumber} />
+        )}
       </div>
-      <div className="opponent-cards-back" aria-hidden>
-        <span />
-        <span />
-        <span />
-      </div>
-      <p className="opponent-score">
-        {won}/{call !== null ? call : '—'}
-      </p>
-      <p className="opponent-name">{name}</p>
     </div>
   )
 }
@@ -162,16 +171,25 @@ function HandFan({
   isFirstTrickOfRound,
   hiddenCardId,
   animating,
+  lastTrick,
+  trickNumber,
 }) {
   if (!hand?.length) return null
 
   const isMyTurn = phase === 'playing' && currentTurn === mySeat
+  const showWonTrick =
+    phase === 'playing' && lastTrick?.winner === mySeat && lastTrick?.cards?.length > 0
   const playOptions = {
     isFirstTrickOfRound: isFirstTrickOfRound && !currentTrick?.cards?.length,
   }
 
   return (
     <div className="hand-fan-bar">
+      {showWonTrick && (
+        <div className="self-won-trick">
+          <WonTrickCards lastTrick={lastTrick} side="bottom" trickNumber={trickNumber} />
+        </div>
+      )}
       <div className="player-self-bar">
         {isMyTurn && <span className="your-turn-badge">Your turn</span>}
         <span>{hand.length} cards</span>
@@ -380,6 +398,8 @@ export default function GameTable({
                   playerNames={playerNames}
                   mySeat={mySeat}
                   position={position}
+                  lastTrick={game.lastTrick}
+                  trickNumber={game.completedTricks}
                 />
               ))}
 
@@ -419,14 +439,6 @@ export default function GameTable({
                 )}
                 {roomCode && <span className="felt-room-code">{roomCode}</span>}
               </p>
-
-              {game.phase === 'playing' && game.lastTrick?.cards?.length > 0 && (
-                <WonTrickDisplay
-                  lastTrick={game.lastTrick}
-                  mySeat={mySeat}
-                  trickNumber={game.completedTricks}
-                />
-              )}
             </div>
           </div>
 
@@ -440,6 +452,8 @@ export default function GameTable({
             isFirstTrickOfRound={game.isFirstTrickOfRound}
             hiddenCardId={hiddenCardId}
             animating={animating}
+            lastTrick={game.lastTrick}
+            trickNumber={game.completedTricks}
           />
         </div>
       </div>
