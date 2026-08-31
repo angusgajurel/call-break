@@ -89,6 +89,7 @@ export function createGameState(payouts = DEFAULT_PAYOUTS) {
     calls: Array(PLAYERS).fill(null),
     wonThisRound: Array(PLAYERS).fill(0),
     totals: Array(PLAYERS).fill(0),
+    roundHistory: [],
     lastRoundScores: null,
     lastRoundNumber: null,
     currentTrick: { cards: [] },
@@ -216,6 +217,12 @@ function finishRound(game) {
 
   game.lastRoundScores = roundScores
   game.lastRoundNumber = game.round
+  game.roundHistory.push({
+    round: game.round,
+    calls: [...game.calls],
+    won: [...game.wonThisRound],
+    scores: [...roundScores],
+  })
 
   if (game.round >= ROUNDS) {
     game.phase = 'finished'
@@ -240,6 +247,12 @@ export function getPublicGameState(game, seat) {
     callsRevealed: true,
     wonThisRound: [...game.wonThisRound],
     totals: [...game.totals],
+    roundHistory: game.roundHistory.map((entry) => ({
+      round: entry.round,
+      calls: [...entry.calls],
+      won: [...entry.won],
+      scores: [...entry.scores],
+    })),
     lastRoundScores: game.lastRoundScores ? [...game.lastRoundScores] : null,
     lastRoundNumber: game.lastRoundNumber,
     currentTrick: game.currentTrick,

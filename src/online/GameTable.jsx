@@ -209,6 +209,11 @@ function HandFan({
 }
 
 function ScoresDrawer({ game, playerNames, onClose }) {
+  const completedRounds = game.roundHistory ?? []
+  const showCurrentRound =
+    !game.gameComplete &&
+    (game.phase === 'bidding' || game.phase === 'playing' || game.calls.some((call) => call !== null))
+
   return (
     <div className="scores-drawer" role="dialog" aria-label="Scores" onClick={onClose}>
       <div className="scores-drawer-panel" onClick={(e) => e.stopPropagation()}>
@@ -219,44 +224,45 @@ function ScoresDrawer({ game, playerNames, onClose }) {
           </button>
         </div>
 
-        {game.lastRoundScores && (
-          <div className="scores-section">
+        {completedRounds.map((round) => (
+          <div key={`round-${round.round}`} className="scores-section">
+            <p className="scores-section-title">Round {round.round}</p>
+            {playerNames.map((player, index) => (
+              <div key={`round-${round.round}-${index}`} className="scores-row">
+                <span>{player}</span>
+                <span>
+                  call {round.calls[index]} · won {round.won[index]} ·{' '}
+                  <strong>{formatScore(round.scores[index])} pts</strong>
+                </span>
+              </div>
+            ))}
+          </div>
+        ))}
+
+        {showCurrentRound && (
+          <div className="scores-section scores-section-current">
             <p className="scores-section-title">
-              Last round {game.lastRoundNumber ? `(${game.lastRoundNumber})` : ''}
+              Round {game.round}
+              {game.phase === 'bidding'
+                ? ' · bidding'
+                : game.phase === 'playing'
+                  ? ' · playing'
+                  : ''}
             </p>
             {playerNames.map((player, index) => (
-              <div key={`last-${index}`} className="scores-row">
+              <div key={`current-${index}`} className="scores-row">
                 <span>{player}</span>
-                <span>{formatScore(game.lastRoundScores[index])} pts</span>
+                <span>
+                  {game.calls[index] !== null
+                    ? `call ${game.calls[index]} · won ${game.wonThisRound[index]}`
+                    : '—'}
+                </span>
               </div>
             ))}
           </div>
         )}
 
-        <div className="scores-section">
-          <p className="scores-section-title">
-            Round {game.round}
-            {game.phase === 'bidding'
-              ? ' · bidding'
-              : game.phase === 'playing'
-                ? ' · playing'
-                : game.gameComplete
-                  ? ' · finished'
-                  : ''}
-          </p>
-          {playerNames.map((player, index) => (
-            <div key={`round-${index}`} className="scores-row">
-              <span>{player}</span>
-              <span>
-                {game.calls[index] !== null
-                  ? `call ${game.calls[index]} · won ${game.wonThisRound[index]}`
-                  : '—'}
-              </span>
-            </div>
-          ))}
-        </div>
-
-        <div className="scores-section">
+        <div className="scores-section scores-section-total">
           <p className="scores-section-title">Total</p>
           {playerNames.map((player, index) => (
             <div key={`total-${index}`} className="scores-row scores-row-total">
