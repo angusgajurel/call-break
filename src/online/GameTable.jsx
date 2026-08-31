@@ -95,6 +95,34 @@ function BidModal({ game, playerNames, mySeat, onSubmitCall }) {
   )
 }
 
+function WonTrickDisplay({ lastTrick, mySeat, trickNumber }) {
+  if (!lastTrick?.cards?.length || lastTrick.winner === undefined || lastTrick.winner === null) {
+    return null
+  }
+
+  const winnerSide = seatPosition(lastTrick.winner, mySeat)
+
+  return (
+    <div
+      className={`won-trick won-trick-${winnerSide}`}
+      key={`won-trick-${trickNumber}`}
+      aria-label={`Trick won by seat ${lastTrick.winner + 1}`}
+    >
+      <div className="won-trick-cards">
+        {lastTrick.cards.map((play, index) => (
+          <div
+            key={`${play.seat}-${play.card.id}`}
+            className={`won-trick-card ${play.seat === lastTrick.winner ? 'won-trick-card-winner' : ''}`}
+            style={{ animationDelay: `${index * 0.09}s` }}
+          >
+            <PlayingCardFace card={play.card} className="playing-card--mini" />
+          </div>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function OpponentSeat({ seat, game, playerNames, mySeat, position }) {
   const name = playerNames[seat]
   const won = game.wonThisRound[seat] ?? 0
@@ -387,19 +415,11 @@ export default function GameTable({
               </p>
 
               {game.phase === 'playing' && game.lastTrick?.cards?.length > 0 && (
-                <div className="last-trick-strip">
-                  <p className="last-trick-title">Last trick · {game.completedTricks}/13</p>
-                  <div className="last-trick-cards">
-                    {game.lastTrick.cards.map((play) => (
-                      <div
-                        key={`${play.seat}-${play.card.id}`}
-                        className={play.seat === game.lastTrick.winner ? 'last-trick-winner' : ''}
-                      >
-                        <PlayingCardFace card={play.card} className="playing-card--mini" />
-                      </div>
-                    ))}
-                  </div>
-                </div>
+                <WonTrickDisplay
+                  lastTrick={game.lastTrick}
+                  mySeat={mySeat}
+                  trickNumber={game.completedTricks}
+                />
               )}
             </div>
           </div>
